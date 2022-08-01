@@ -142,7 +142,7 @@
 
         const taxon = await getTaxon(params.get('taxon'))
         const taxa = await getTaxonParents(params.get('taxon'))
-        taxa.push(taxon.canonicalName)
+        taxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
         document.getElementById('taxon').value = taxon.key
         document.getElementById('search_taxon').value = taxon.scientificName
 
