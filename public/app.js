@@ -44,6 +44,7 @@
                     $input.value = $searchResult.getAttribute('data-value')
                     $searchInput.value = $searchResult.getAttribute('data-display-value')
                     empty($searchResults)
+                    $searchInput.focus()
                     event.preventDefault()
                 })
 
@@ -136,6 +137,14 @@
         return RANKS.indexOf(a) - RANKS.indexOf(b)
     }
 
+    const fieldsToDisplay = ['id', 'title', 'scope', 'key_type', 'fulltext_url', 'language']
+    const $tableHeaders = document.getElementById('result_headers')
+    for (const header of fieldsToDisplay) {
+        const $header = document.createElement('th')
+        $header.textContent = fieldLabels[header]
+        $tableHeaders.appendChild($header)
+    }
+
     const params = new URLSearchParams(window.location.search)
     if (params.has('taxon') && params.has('location')) {
         placeMap = await fetch('./data/places.json').then(r => r.json())
@@ -145,10 +154,10 @@
         taxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
         document.getElementById('taxon').value = taxon.key
         document.getElementById('search_taxon').value = taxon.scientificName
+        document.getElementById('location').value = params.get('location')
 
         const places = await getPlaces(params.get('location'))
         places.unshift('-')
-        document.getElementById('location').value = params.get('location')
         console.log(taxa, places)
 
         const [headers, ...rows] = await loadCatalog()
@@ -214,15 +223,8 @@
 
         results.sort((a, b) => b._score - a._score)
 
-        const fieldsToDisplay = ['id', 'title', 'scope', 'key_type', 'fulltext_url', 'language']
-        const tableHeaders = document.getElementById('result_headers')
-        for (const header of fieldsToDisplay) {
-            const tableHeader = document.createElement('th')
-            tableHeader.textContent = fieldLabels[header]
-            tableHeaders.appendChild(tableHeader)
-        }
-
         const tableRows = document.getElementById('results')
+        empty(tableRows)
         for (const rowData of results) {
             const tableRow = document.createElement('tr')
 

@@ -27,6 +27,9 @@ body > header { grid-area: header; }
   grid-area: results;
   overflow-y: auto;
 }
+#results_wrapper table {
+  min-width: 100%;
+}
 #detail_wrapper { grid-area: detail; }
 #detail_wrapper iframe {
   width: 100%;
