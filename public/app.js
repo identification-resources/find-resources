@@ -252,6 +252,8 @@
 
     const params = new URLSearchParams(window.location.search)
     if (params.has('taxon') && params.has('location')) {
+        document.getElementById('results_message').textContent = 'Loading...'
+
         const taxon = await getTaxon(params.get('taxon'))
         document.getElementById('taxon').value = taxon.key
         document.getElementById('search_taxon').value = taxon.scientificName
