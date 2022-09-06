@@ -105,12 +105,116 @@
         return fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}`).then(r => r.json())
     }
 
-    let placeMap = {}
     async function getPlaces (query) {
         const [lat, long] = query.split(',')
         const response = await fetch(`https://api.inaturalist.org/v1/places/nearby?nelat=${lat}&nelng=${long}&swlat=${lat}&swlng=${long}`)
         const results = await response.json()
-        return results.results.standard.map(result => placeMap[result.id]).filter(Boolean)
+        return results.results.standard
+    }
+
+    async function getCountryCode (id) {
+        const query = encodeURIComponent(`SELECT*WHERE{"${id}"^wdt:P7471/wdt:P297?c}`)
+        return fetch('https://query.wikidata.org/sparql?format=json&query=' + query)
+            .then(response => response.json())
+            .then(response => response.results.bindings[0].c.value)
+    }
+
+    async function getOccurrencesBySpecies (taxon, countryCode) {
+        const url = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&limit=0&facetLimit=100`
+        // TODO pagination
+        return fetch(url).then(response => response.json()).then(response => response.facets[0].counts)
+    }
+
+    async function findGbifMatches (taxon, countryCode) {
+        const gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
+
+        const speciesCounts = await getOccurrencesBySpecies(taxon, countryCode)
+        const speciesCount = speciesCounts.length
+        const countsTotal = speciesCounts.reduce((sum, species) => sum + species.count, 0)
+        const resources = {}
+
+        for (const { name: species, count } of speciesCounts) {
+            if (species in gbif) {
+                for (const id of gbif[species]) {
+                    const resourceId = id.replace(/:[1-9]\d*$/, '')
+                    if (!(resourceId in resources)) {
+                        resources[resourceId] = {
+                            speciesRatio: 0,
+                            observationRatio: 0,
+                            missing: new Set(speciesCounts.map(species => species.name))
+                        }
+                    }
+                    if (resources[resourceId].missing.has(species)) {
+                        resources[resourceId].speciesRatio += 1 / speciesCount
+                        resources[resourceId].observationRatio += count / countsTotal
+                        resources[resourceId].missing.delete(species)
+                    }
+                }
+            }
+        }
+
+        return resources
+    }
+
+    async function getResults (taxon, location) {
+        // Get parent taxa
+        const parentTaxa = await getTaxonParents(taxon.key)
+        parentTaxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
+
+        // Get place info
+        const allPlaces = await getPlaces(location)
+        const placeMap = await fetch('./data/places.json').then(response => response.json())
+        const places = allPlaces.map(result => placeMap[result.id]).filter(Boolean)
+        places.unshift('-')
+        const countryCode = await getCountryCode(allPlaces.find(place => place.place_type === 12).id)
+
+        console.log(parentTaxa, places)
+
+        const results = []
+        const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
+        const resources = await loadKeys()
+        const matchingResources = await findGbifMatches(taxon.key, countryCode)
+
+        for (const resourceId in matchingResources) {
+            const catalogId = resourceId.replace(/:[1-9]\d*$/, '')
+            const resource = resources[resourceId]
+            const record = Object.assign(
+                {
+                    species_ratio: matchingResources[resourceId].speciesRatio,
+                    observation_ratio: matchingResources[resourceId].observationRatio,
+                },
+                catalog[catalogId],
+                resource.catalog || {}
+            )
+            results.push(record)
+        }
+
+        for (const id in catalog) {
+            const record = catalog[id]
+
+            let closestTaxon = 0
+            for (const taxon of record.taxon.split('; ')) {
+                const index = parentTaxa.indexOf(taxon) + 1
+                if (index && closestTaxon < index) {
+                    closestTaxon = index
+                }
+            }
+            if (closestTaxon === 0) {
+                // Taxa not applicable
+                continue
+            } else {
+                record.parent_proximity = closestTaxon / parentTaxa.length
+            }
+
+            if (!record.region.split('; ').some(place => places.includes(place))) {
+                // Region not applicable
+                continue
+            }
+
+            results.push(record)
+        }
+
+        return results
     }
 
     const RANKS = [
@@ -137,7 +241,8 @@
         return RANKS.indexOf(a) - RANKS.indexOf(b)
     }
 
-    const fieldsToDisplay = ['id', 'title', 'scope', 'key_type', 'fulltext_url', 'language']
+    const fieldsToDisplay = ['id', 'title', 'scope', 'key_type', 'fulltext_url', 'language', 'species_ratio']
+    fieldLabels.species_ratio = 'Coverage'
     const $tableHeaders = document.getElementById('result_headers')
     for (const header of fieldsToDisplay) {
         const $header = document.createElement('th')
@@ -147,35 +252,19 @@
 
     const params = new URLSearchParams(window.location.search)
     if (params.has('taxon') && params.has('location')) {
-        placeMap = await fetch('./data/places.json').then(r => r.json())
-
         const taxon = await getTaxon(params.get('taxon'))
-        const taxa = await getTaxonParents(params.get('taxon'))
-        taxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
         document.getElementById('taxon').value = taxon.key
         document.getElementById('search_taxon').value = taxon.scientificName
         document.getElementById('location').value = params.get('location')
 
-        const places = await getPlaces(params.get('location'))
-        places.unshift('-')
-        console.log(taxa, places)
+        const results = await getResults(taxon, params.get('location'))
 
-        const [headers, ...rows] = await loadCatalog()
-        const results = []
-
-        for (const row of rows) {
-            const record = row.reduce((record, value, index) => (record[headers[index]] = value, record), {})
-
-            let closestTaxon = 0
-            for (const taxon of record.taxon.split('; ')) {
-                const index = taxa.indexOf(taxon) + 1
-                if (index && closestTaxon < index) {
-                    closestTaxon = index
-                }
-            }
-            record._score = closestTaxon / taxa.length
-
-            if (!record.region.split('; ').some(place => places.includes(place))) {
+        for (const record of results) {
+            if (record.parent_proximity) {
+                record._score = record.parent_proximity
+            } else if (record.species_ratio) {
+                record._score = record.species_ratio
+            } else {
                 record._score = 0
             }
 
@@ -215,10 +304,6 @@
                 const year = record.date.split('-')[0]
                 record._score *= 1 - (1 / year)
             }
-
-            if (record._score > 0) {
-                results.push(record)
-            }
         }
 
         results.sort((a, b) => b._score - a._score)
@@ -243,6 +328,20 @@
                     a.setAttribute('href', `/catalog/detail?id=${value}&embed`)
                     a.textContent = value
                     tableCell.appendChild(a)
+                } else if (header === 'species_ratio') {
+                    if (!isNaN(value)) {
+                        const span = document.createElement('span')
+                        span.setAttribute('style', `
+                            width: 1.5em;
+                            height: 1.5em;
+                            border-radius: 100%;
+                            display: inline-block;
+                            vertical-align: bottom;
+                            background: conic-gradient(black 0%, black 0% ${value * 100}%, #989d89 ${value * 100}% 100%);
+                        `)
+                        tableCell.appendChild(span)
+                        tableCell.append(` ${(value * 100).toFixed()}%`)
+                    }
                 } else {
                     tableCell.textContent = value
                 }
