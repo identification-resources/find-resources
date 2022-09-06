@@ -263,7 +263,8 @@
             if (record.parent_proximity) {
                 record._score = record.parent_proximity
             } else if (record.species_ratio) {
-                record._score = record.species_ratio
+                const offset = 0.5
+                record._score = offset + (record.species_ratio * (1 - offset))
             } else {
                 record._score = 0
             }
