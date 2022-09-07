@@ -120,9 +120,21 @@
     }
 
     async function getOccurrencesBySpecies (taxon, countryCode) {
-        const url = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&limit=0&facetLimit=100`
-        // TODO pagination
-        return fetch(url).then(response => response.json()).then(response => response.facets[0].counts)
+        const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&limit=0`
+
+        const species = []
+        const pageSize = 100
+        let offset = 0
+        while (true) {
+            const url = `${baseUrl}&facetLimit=${pageSize}&facetOffset=${offset}`
+            const response = await fetch(url).then(response => response.json()).then(response => response.facets[0].counts)
+            species.push(...response)
+            if (response.length < pageSize) {
+                return species
+            } else {
+                offset += pageSize
+            }
+        }
     }
 
     async function findGbifMatches (taxon, countryCode) {
