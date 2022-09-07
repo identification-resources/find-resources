@@ -199,6 +199,7 @@
                     observation_ratio: matchingResources[resourceId].observationRatio,
                 },
                 catalog[catalogId],
+                resource,
                 resource.catalog || {}
             )
             seenCatalogWorks.add(catalogId)
