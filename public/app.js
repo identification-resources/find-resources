@@ -199,9 +199,11 @@
                     observation_ratio: matchingResources[resourceId].observationRatio,
                 },
                 catalog[catalogId],
-                resource,
                 resource.catalog || {}
             )
+            if (resource.scope) {
+                record.scope = resource.scope
+            }
             seenCatalogWorks.add(catalogId)
             results.push(record)
         }
