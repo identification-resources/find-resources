@@ -183,10 +183,13 @@
         console.log(parentTaxa, places)
 
         const results = []
+        // Get catalog and key info
         const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
         const resources = await loadKeys()
-        const matchingResources = await findGbifMatches(taxon.key, countryCode)
 
+        // Use GBIF occurrence data and the GBIF index to keys to find keys
+        const matchingResources = await findGbifMatches(taxon.key, countryCode)
+        const seenCatalogWorks = new Set()
         for (const resourceId in matchingResources) {
             const catalogId = resourceId.replace(/:[1-9]\d*$/, '')
             const resource = resources[resourceId]
@@ -198,10 +201,16 @@
                 catalog[catalogId],
                 resource.catalog || {}
             )
+            seenCatalogWorks.add(catalogId)
             results.push(record)
         }
 
+        // Use the less granular metadata in the catalog to find works
         for (const id in catalog) {
+            // Skip works that were already found with GBIF data
+            if (seenCatalogWorks.has(id)) { continue }
+
+            // Determine relevance of work
             const record = catalog[id]
 
             let closestTaxon = 0
