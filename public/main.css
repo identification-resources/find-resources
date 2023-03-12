@@ -2,11 +2,16 @@
   box-sizing: border-box;
 }
 
-html, body, main {
+html, body {
   height: 100%
 }
 
-main {
+body {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+body > main {
   display: grid;
   grid-template-rows: min-content 1fr;
   grid-template-columns: 1fr 1fr;
@@ -14,7 +19,8 @@ main {
   justify-items: stretch;
   align-items: stretch;
   gap: 2em;
-  padding: 0.5em 2em;
+  padding: 1.5em 2em;
+  min-height: 0;
 }
 
 body > main > * {
@@ -24,7 +30,7 @@ body > main > * {
 }
 
 @media screen and (max-width: 1058px) {
-  main {
+  body > main {
     grid-template-rows: auto auto auto 100vh;
     grid-template-columns: 1fr;
     grid-template-areas: "intro" "input" "results" "detail";
@@ -34,7 +40,7 @@ body > main > * {
     margin: 0 -2em;
   }
 
-  html, body, main {
+  html, body, body > main {
     height: auto;
   }
 }
