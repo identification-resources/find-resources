@@ -213,9 +213,17 @@
             // Skip works that were already found with GBIF data
             if (seenCatalogWorks.has(id)) { continue }
 
-            // Determine relevance of work
             const record = catalog[id]
 
+            // If works would have been found with GBIF data, indicate zero coverage.
+            // The works are still included as they might still have coverage but for
+            // synonym resolution.
+            if (resources[id + ':1']) {
+              record.species_ratio = 0
+              record.observation_ratio = 0
+            }
+
+            // Determine relevance of work
             let closestTaxon = 0
             for (const taxon of record.taxon.split('; ')) {
                 const index = parentTaxa.indexOf(taxon) + 1
