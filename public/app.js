@@ -346,6 +346,10 @@
         const tableRows = document.getElementById('results')
         empty(tableRows)
         for (const rowData of results) {
+            if (rowData._score === 0) {
+                continue
+            }
+
             const tableRow = document.createElement('tr')
 
             for (const header of fieldsToDisplay) {
