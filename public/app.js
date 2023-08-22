@@ -318,7 +318,7 @@
                 record._score *= every ? 1 : some ? 0.9 : 0;
             }
 
-            if (record.complete === 'FALSE') {
+            if (record.complete === 'FALSE' || record.taxon_scope) {
                 record._score *= 0.9
             }
 
