@@ -343,52 +343,101 @@
 
         results.sort((a, b) => b._score - a._score)
 
-        const tableRows = document.getElementById('results')
-        empty(tableRows)
-        for (const rowData of results) {
-            if (rowData._score === 0) {
+        const $results = document.getElementById('results')
+        empty($results)
+        for (const result of results) {
+            if (result._score === 0) {
                 continue
             }
 
-            const tableRow = document.createElement('tr')
+            const $result = document.createElement('div')
+            $result.setAttribute('class', 'result')
+            $result.addEventListener('click', () => {
+                window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
+            })
 
-            for (const header of fieldsToDisplay) {
-                const tableCell = document.createElement('td')
-                const value = rowData[header]
+            // COLUMN 1
+            const $idColumn = document.createElement('div')
 
-                if (header.endsWith('url')) {
-                    tableCell.innerHTML = value || rowData.archive_url ? octicons.available : octicons.not_available
-                } else if (header.endsWith('_type') && value) {
-                    tableCell.innerHTML = value.split('; ').map(value => octicons[value] || value).join(' ')
-                } else if (header === 'id') {
-                    const a = document.createElement('a')
-                    a.setAttribute('class', 'row-link')
-                    a.setAttribute('target', 'detail')
-                    a.setAttribute('href', `/catalog/detail?id=${value}&embed`)
-                    a.textContent = value
-                    tableCell.appendChild(a)
-                } else if (header === 'species_ratio') {
-                    if (!isNaN(value)) {
-                        const span = document.createElement('span')
-                        span.setAttribute('style', `
-                            width: 1.5em;
-                            height: 1.5em;
-                            border-radius: 100%;
-                            display: inline-block;
-                            vertical-align: bottom;
-                            background: conic-gradient(black 0%, black 0% ${value * 100}%, #989d89 ${value * 100}% 100%);
-                        `)
-                        tableCell.appendChild(span)
-                        tableCell.append(` ${(value * 100).toFixed()}%`)
-                    }
-                } else {
-                    tableCell.textContent = value
-                }
+            const $idLink = document.createElement('a')
+            $idLink.setAttribute('target', 'detail')
+            $idLink.setAttribute('href', `/catalog/detail?id=${result.id}`)
+            $idLink.textContent = result.id
+            $idColumn.appendChild($idLink)
 
-                tableRow.appendChild(tableCell)
+            const $keyTypes = document.createElement('div')
+            $keyTypes.innerHTML = result.key_type.split('; ').map(value => octicons[value] || value).join(' ')
+            $idColumn.appendChild($keyTypes)
+
+            $result.appendChild($idColumn)
+
+            // COLUMN 2
+            const $titleColumn = document.createElement('div')
+
+            const $title = document.createElement('h3')
+            $title.innerHTML = octicons[result.entry_type] || ''
+            $title.append(' ' + result.title)
+            if (result.date) {
+                const $year = document.createElement('span')
+                $year.setAttribute('style', 'color: #484b3e;')
+                $year.textContent = `(${result.date.replace(/-[^\/]+/g, '')})`
+                $title.append(' ', $year)
+            }
+            $titleColumn.appendChild($title)
+
+            const fulltext = result.fulltext_url || result.archive_url
+            if (fulltext) {
+                const $fulltext = document.createElement('p')
+
+                $fulltext.setAttribute('style', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;')
+                $fulltext.innerHTML = octicons.available
+
+                const $fulltextLink = document.createElement('a')
+                $fulltextLink.setAttribute('target', 'blank')
+                $fulltextLink.setAttribute('href', fulltext)
+                $fulltextLink.textContent = fulltext
+                $fulltext.append(' ', $fulltextLink)
+
+                $titleColumn.appendChild($fulltext)
             }
 
-            tableRows.appendChild(tableRow)
+            const $info = document.createElement('p')
+            {
+                const languageNames = new Intl.DisplayNames(['en'], { type: 'language' })
+                const $language = document.createElement('b')
+                $language.textContent = 'Language'
+                $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)))
+            }
+            if (result.scope && result.scope.length) {
+                const $scope = document.createElement('b')
+                $scope.textContent = 'Scope'
+                $info.append(document.createElement('br'), $scope, ' ', result.scope)
+            }
+            $titleColumn.appendChild($info)
+
+            $result.appendChild($titleColumn)
+
+            // COLUMN 3
+            const $coverageColumn = document.createElement('div')
+            if (!isNaN(result.species_ratio)) {
+                const value = result.species_ratio
+                const $coverage = document.createElement('div')
+                const span = document.createElement('span')
+                span.setAttribute('style', `
+                    width: 1.5em;
+                    height: 1.5em;
+                    border-radius: 100%;
+                    display: inline-block;
+                    vertical-align: bottom;
+                    background: conic-gradient(black 0%, black 0% ${value * 100}%, #989d89 ${value * 100}% 100%);
+                `.trim().replace(/\s+/g, ' '))
+                $coverage.appendChild(span)
+                $coverage.append(` ${(value * 100).toFixed()}%`)
+                $coverageColumn.appendChild($coverage)
+            }
+            $result.appendChild($coverageColumn)
+
+            $results.appendChild($result)
         }
     }
 })()
