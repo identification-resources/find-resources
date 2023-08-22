@@ -357,7 +357,7 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        const missing = checklist.filter(taxon => !DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
+        const missing = checklist.filter(taxon => !DATA.gbif[taxon.name] || !DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
 
         const $missing = document.getElementById('missing_taxa')
         empty($missing)
