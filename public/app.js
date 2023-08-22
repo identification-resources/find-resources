@@ -1,4 +1,11 @@
 (async function () {
+    const DATA = {
+        catalog: await indexCsv('/assets/data/catalog.csv', 'id'),
+        resources: await loadKeys(),
+        gbif: await fetch('/assets/data/resources/gbif.index.json').then(response => response.json()),
+        places: await fetch('./data/places.json').then(response => response.json())
+    }
+
     function empty (element) {
         while (element.firstChild) {
             element.firstChild.remove()
@@ -94,17 +101,14 @@
     }
 
     async function getResourceSuggestions (query) {
-        const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
-        const resources = await loadKeys()
-
         const results = []
 
-        for (const id in catalog) {
-            const row = catalog[id]
+        for (const id in DATA.catalog) {
+            const row = DATA.catalog[id]
 
-            for (let i = 1; resources[id + ':' + i]; i++) {
+            for (let i = 1; DATA.resources[id + ':' + i]; i++) {
                 const resourceId = id + ':' + i
-                const resource = resources[resourceId]
+                const resource = DATA.resources[resourceId]
 
                 const searchValues = [
                     resource.id,
@@ -163,14 +167,12 @@
     makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
-    async function getTaxonParents (query) {
-        const response = await fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}/parents`)
-        const results = await response.json()
-        return results.map(result => result.canonicalName)
-    }
-
     async function getTaxon (query) {
         return fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}`).then(r => r.json())
+    }
+
+    function getTaxonParents (taxon) {
+        return RANKS.map(rank => taxon[rank]).filter(Boolean)
     }
 
     async function getPlaces (query) {
@@ -228,15 +230,13 @@
     }
 
     async function findGbifMatches (checklist) {
-        const gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
-
         const speciesCount = checklist.length
         const countsTotal = checklist.reduce((sum, species) => sum + species.count, 0)
         const resources = {}
 
         for (const { name: species, count } of checklist) {
-            if (species in gbif) {
-                for (const id of gbif[species]) {
+            if (species in DATA.gbif) {
+                for (const id of DATA.gbif[species]) {
                     const resourceId = id.replace(/:[1-9]\d*$/, '')
                     if (!(resourceId in resources)) {
                         resources[resourceId] = {
@@ -259,18 +259,15 @@
 
     async function getResults (taxon, params) {
         // Get parent taxa
-        const parentTaxa = await getTaxonParents(taxon.key)
-        parentTaxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
+        const parentTaxa = getTaxonParents(taxon)
+        if (taxon.key === 0) {
+            parentTaxa.push('Biota')
+        }
 
         // Get place info
         const allPlaces = await getPlaces(params.get('location'))
-        const placeMap = await fetch('./data/places.json').then(response => response.json())
-        const places = allPlaces.map(result => placeMap[result.id]).filter(Boolean)
+        const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
-
-        // Get catalog and key info
-        const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
-        const resources = await loadKeys()
 
         // Get checklist
         let checklist
@@ -301,14 +298,14 @@
         const seenCatalogWorks = new Set()
         for (const resourceId in matchingResources) {
             const catalogId = resourceId.replace(/:[1-9]\d*$/, '')
-            const resource = resources[resourceId]
+            const resource = DATA.resources[resourceId]
             const record = Object.assign(
                 {
                     _resource: resource,
                     species_ratio: matchingResources[resourceId].speciesRatio,
                     observation_ratio: matchingResources[resourceId].observationRatio,
                 },
-                catalog[catalogId],
+                DATA.catalog[catalogId],
                 resource.catalog || {}
             )
             if (resource.scope) {
@@ -319,16 +316,16 @@
         }
 
         // Use the less granular metadata in the catalog to find works
-        for (const id in catalog) {
+        for (const id in DATA.catalog) {
             // Skip works that were already found with GBIF data
             if (seenCatalogWorks.has(id)) { continue }
 
-            const record = catalog[id]
+            const record = DATA.catalog[id]
 
             // If works would have been found with GBIF data, indicate zero coverage.
             // The works are still included as they might still have coverage but for
             // synonym resolution.
-            if (resources[id + ':1']) {
+            if (DATA.resources[id + ':1']) {
               record.species_ratio = 0
               record.observation_ratio = 0
             }
@@ -360,8 +357,7 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        const gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
-        const missing = checklist.filter(taxon => !gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
+        const missing = checklist.filter(taxon => !DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
 
         const $missing = document.getElementById('missing_taxa')
         empty($missing)
@@ -417,7 +413,7 @@
         document.getElementById('search_taxon').value = taxon.scientificName
 
         if (params.has('checklist-catalog')) {
-            const work = (await indexCsv('/assets/data/catalog.csv', 'id'))[params.get('checklist-catalog').split(':')[0]]
+            const work = DATA.catalog[params.get('checklist-catalog').split(':')[0]]
             document.getElementById('search_checklist-catalog').value = work.title
         }
 
