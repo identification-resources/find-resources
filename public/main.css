@@ -61,7 +61,7 @@ form > div {
   border-bottom: 1px solid black;
   cursor: pointer;
   display: grid;
-  grid-template-columns: 4em 1fr 5em;
+  grid-template-columns: 4em 1fr 6em;
   grid-template-areas: "a b c";
 }
 

@@ -93,7 +93,75 @@
         })
     }
 
+    async function getResourceSuggestions (query) {
+        const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
+        const resources = await loadKeys()
+
+        const results = []
+
+        for (const id in catalog) {
+            const row = catalog[id]
+
+            for (let i = 1; resources[id + ':' + i]; i++) {
+                const resourceId = id + ':' + i
+                const resource = resources[resourceId]
+
+                const searchValues = [
+                    resource.id,
+                    ...Object.values(row),
+                    ...Object.values(resource.catalog || {})
+                ]
+                const match = searchValues.join('\u001D').toLowerCase().includes(query.toLowerCase())
+                if (!match) {
+                    continue
+                }
+
+                const $result = new DocumentFragment()
+
+                const $rank = document.createElement('span')
+                $rank.innerHTML = [
+                    row.entry_type.split('; '),
+                    row.key_type.split('; ')
+                ].map(value => octicons[value] || value).join(' ')
+                $rank.setAttribute('class', 'search-taxon')
+                $result.appendChild($rank)
+
+                const $main = document.createElement('span')
+                $main.setAttribute('class', 'search-taxon-main')
+                $result.appendChild($main)
+
+                const $full = document.createElement('span')
+                $full.textContent = ' ' + (row.date.split('-')[0] || '')
+                $full.setAttribute('class', 'search-taxon')
+                $main.appendChild($full)
+
+                const $name = document.createElement('span')
+                $name.textContent = row.title
+                $name.setAttribute('class', 'search-taxon-name')
+                $full.prepend($name)
+
+                const $sub = document.createElement('span')
+                $sub.textContent = resourceId + ': ' + resource.taxonCount + ' taxa'
+                $sub.setAttribute('class', 'search-taxon-sub')
+                $result.append($sub)
+
+                results.push({
+                    value: resourceId,
+                    displayValue: row.title,
+                    $result
+                })
+
+                if (results.length >= 10) {
+                    break
+                }
+            }
+        }
+
+        return results
+    }
+
     makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
+    makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
     async function getTaxonParents (query) {
         const response = await fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}/parents`)
@@ -137,15 +205,36 @@
         }
     }
 
-    async function findGbifMatches (taxon, countryCode) {
+    async function getGbifSubtaxa (taxon) {
+        const baseUrl = `https://api.gbif.org/v1/species/search?highertaxonKey=${taxon}&rank=SPECIES`
+
+        const species = new Set()
+        const pageSize = 100
+        let offset = 0
+        while (true) {
+            const url = `${baseUrl}&limit=${pageSize}&offset=${offset}`
+            const response = await fetch(url).then(response => response.json())
+
+            for (const result of response.results) {
+                species.add(result.key)
+            }
+
+            if (response.endOfRecords) {
+                return species
+            } else {
+                offset += pageSize
+            }
+        }
+    }
+
+    async function findGbifMatches (checklist) {
         const gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
 
-        const speciesCounts = await getOccurrencesBySpecies(taxon, countryCode)
-        const speciesCount = speciesCounts.length
-        const countsTotal = speciesCounts.reduce((sum, species) => sum + species.count, 0)
+        const speciesCount = checklist.length
+        const countsTotal = checklist.reduce((sum, species) => sum + species.count, 0)
         const resources = {}
 
-        for (const { name: species, count } of speciesCounts) {
+        for (const { name: species, count } of checklist) {
             if (species in gbif) {
                 for (const id of gbif[species]) {
                     const resourceId = id.replace(/:[1-9]\d*$/, '')
@@ -153,7 +242,7 @@
                         resources[resourceId] = {
                             speciesRatio: 0,
                             observationRatio: 0,
-                            missing: new Set(speciesCounts.map(species => species.name))
+                            missing: new Set(checklist.map(species => species.name))
                         }
                     }
                     if (resources[resourceId].missing.has(species)) {
@@ -168,27 +257,43 @@
         return resources
     }
 
-    async function getResults (taxon, location) {
+    async function getResults (taxon, params) {
         // Get parent taxa
         const parentTaxa = await getTaxonParents(taxon.key)
         parentTaxa.push(taxon.key === 0 ? 'Biota' : taxon.canonicalName)
 
         // Get place info
-        const allPlaces = await getPlaces(location)
+        const allPlaces = await getPlaces(params.get('location'))
         const placeMap = await fetch('./data/places.json').then(response => response.json())
         const places = allPlaces.map(result => placeMap[result.id]).filter(Boolean)
         places.unshift('-')
-        const countryCode = await getCountryCode(allPlaces.find(place => place.place_type === 12).id)
 
-        console.log(parentTaxa, places)
-
-        const results = []
         // Get catalog and key info
         const catalog = await indexCsv('/assets/data/catalog.csv', 'id')
         const resources = await loadKeys()
 
-        // Use GBIF occurrence data and the GBIF index to keys to find keys
-        const matchingResources = await findGbifMatches(taxon.key, countryCode)
+        // Get checklist
+        let checklist
+        if (params.get('checklist') === 'catalog') {
+            // Use resource in catalog as basis
+            const resource = await loadKey(params.get('checklist-catalog'))
+            const filter = await getGbifSubtaxa(taxon.key)
+            checklist = Object.values(resource.taxa)
+                .map(taxon => parseInt(taxon.data[27]))
+                .filter((taxon, i, a) => a.indexOf(taxon) === i && filter.has(taxon))
+                .map(taxon => ({ name: taxon, count: 0 }))
+        } else {
+            // Use GBIF occurrence data
+            const countryCode = await getCountryCode(allPlaces.find(place => place.place_type === 12).id)
+            checklist = await getOccurrencesBySpecies(taxon.key, countryCode)
+        }
+
+        console.log(parentTaxa, places, checklist)
+
+        const results = []
+
+        // Use the GBIF ID-based checklist and the GBIF index to keys to find keys
+        const matchingResources = await findGbifMatches(checklist)
         const seenCatalogWorks = new Set()
         for (const resourceId in matchingResources) {
             const catalogId = resourceId.replace(/:[1-9]\d*$/, '')
@@ -273,25 +378,26 @@
         return RANKS.indexOf(a) - RANKS.indexOf(b)
     }
 
-    const fieldsToDisplay = ['id', 'title', 'scope', 'key_type', 'fulltext_url', 'language', 'species_ratio']
     fieldLabels.species_ratio = 'Coverage'
-    const $tableHeaders = document.getElementById('result_headers')
-    for (const header of fieldsToDisplay) {
-        const $header = document.createElement('th')
-        $header.textContent = fieldLabels[header]
-        $tableHeaders.appendChild($header)
-    }
 
     const params = new URLSearchParams(window.location.search)
     if (params.has('taxon') && params.has('location')) {
         document.getElementById('results_message').textContent = 'Loading...'
 
-        const taxon = await getTaxon(params.get('taxon'))
-        document.getElementById('taxon').value = taxon.key
-        document.getElementById('search_taxon').value = taxon.scientificName
+        document.getElementById('taxon').value = params.get('taxon')
         document.getElementById('location').value = params.get('location')
+        document.getElementById('checklist_' + (params.get('checklist') || 'search')).checked = true
+        document.getElementById('checklist-catalog').value = params.get('checklist-catalog')
 
-        const results = await getResults(taxon, params.get('location'))
+        const taxon = await getTaxon(params.get('taxon'))
+        document.getElementById('search_taxon').value = taxon.scientificName
+
+        if (params.has('checklist-catalog')) {
+            const work = (await indexCsv('/assets/data/catalog.csv', 'id'))[params.get('checklist-catalog').split(':')[0]]
+            document.getElementById('search_checklist-catalog').value = work.title
+        }
+
+        const results = await getResults(taxon, params)
 
         for (const record of results) {
             if (record.parent_proximity) {
