@@ -208,7 +208,7 @@
     async function getGbifSubtaxa (taxon) {
         const baseUrl = `https://api.gbif.org/v1/species/search?highertaxonKey=${taxon}&rank=SPECIES`
 
-        const species = new Set()
+        const species = new Map()
         const pageSize = 100
         let offset = 0
         while (true) {
@@ -216,7 +216,7 @@
             const response = await fetch(url).then(response => response.json())
 
             for (const result of response.results) {
-                species.add(result.key)
+                species.set(result.key, result)
             }
 
             if (response.endOfRecords) {
@@ -277,11 +277,15 @@
         if (params.get('checklist') === 'catalog') {
             // Use resource in catalog as basis
             const resource = await loadKey(params.get('checklist-catalog'))
-            const filter = await getGbifSubtaxa(taxon.key)
+            const subtaxa = await getGbifSubtaxa(taxon.key)
             checklist = Object.values(resource.taxa)
                 .map(taxon => parseInt(taxon.data[27]))
-                .filter((taxon, i, a) => a.indexOf(taxon) === i && filter.has(taxon))
-                .map(taxon => ({ name: taxon, count: 0 }))
+                .filter((taxon, i, a) => a.indexOf(taxon) === i && subtaxa.has(taxon))
+                .map(taxon => ({
+                    name: taxon,
+                    displayName: subtaxa.get(taxon).scientificName,
+                    count: 0
+                }))
         } else {
             // Use GBIF occurrence data
             const countryCode = await getCountryCode(allPlaces.find(place => place.place_type === 12).id)
@@ -300,6 +304,7 @@
             const resource = resources[resourceId]
             const record = Object.assign(
                 {
+                    _resource: resource,
                     species_ratio: matchingResources[resourceId].speciesRatio,
                     observation_ratio: matchingResources[resourceId].observationRatio,
                 },
@@ -351,7 +356,26 @@
             results.push(record)
         }
 
-        return results
+        return [results, checklist]
+    }
+
+    async function openCoverageDialog (result, checklist) {
+        const gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
+        const missing = checklist.filter(taxon => !gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
+
+        const $missing = document.getElementById('missing_taxa')
+        empty($missing)
+
+        for (const taxon of missing) {
+            const $taxon = document.createElement('li')
+            const $taxonLink = document.createElement('a')
+            $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
+            $taxonLink.textContent = taxon.displayName || taxon.name
+            $taxon.appendChild($taxonLink)
+            $missing.appendChild($taxon)
+        }
+
+        $missing.closest('dialog').showModal()
     }
 
     const RANKS = [
@@ -397,7 +421,7 @@
             document.getElementById('search_checklist-catalog').value = work.title
         }
 
-        const results = await getResults(taxon, params)
+        const [results, checklist] = await getResults(taxon, params)
 
         for (const record of results) {
             if (record.parent_proximity) {
@@ -539,6 +563,10 @@
                 `.trim().replace(/\s+/g, ' '))
                 $coverage.appendChild(span)
                 $coverage.append(` ${(value * 100).toFixed()}%`)
+                $coverage.addEventListener('click', event => {
+                    event.stopPropagation()
+                    openCoverageDialog(result, checklist)
+                })
                 $coverageColumn.appendChild($coverage)
             }
             $result.appendChild($coverageColumn)
