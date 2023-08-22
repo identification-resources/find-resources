@@ -412,7 +412,7 @@
         const taxon = await getTaxon(params.get('taxon'))
         document.getElementById('search_taxon').value = taxon.scientificName
 
-        if (params.has('checklist-catalog')) {
+        if (params.has('checklist-catalog') && params.get('checklist-catalog')) {
             const work = DATA.catalog[params.get('checklist-catalog').split(':')[0]]
             document.getElementById('search_checklist-catalog').value = work.title
         }
@@ -420,9 +420,9 @@
         const [results, checklist] = await getResults(taxon, params)
 
         for (const record of results) {
-            if (record.parent_proximity) {
+            if ('parent_proximity' in record) {
                 record._score = record.parent_proximity
-            } else if (record.species_ratio) {
+            } else if ('species_ratio' in record) {
                 const offset = 0.5
                 record._score = offset + (record.species_ratio * (1 - offset))
             } else {
@@ -444,7 +444,7 @@
                 record._score *= every ? 1 : some ? 0.9 : 0;
             }
 
-            if (record.complete === 'FALSE' || record.taxon_scope) {
+            if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
                 record._score *= 0.9
             }
 
