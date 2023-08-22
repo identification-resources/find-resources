@@ -113,7 +113,7 @@
     }
 
     async function getCountryCode (id) {
-        const query = encodeURIComponent(`SELECT*WHERE{"${id}"^wdt:P7471/wdt:P297?c}`)
+        const query = encodeURIComponent(`SELECT*WHERE{"${id}"^wdt:P7471/wdt:P131*/wdt:P297?c}`)
         return fetch('https://query.wikidata.org/sparql?format=json&query=' + query)
             .then(response => response.json())
             .then(response => response.results.bindings[0].c.value)
