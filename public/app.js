@@ -408,12 +408,13 @@
         const taxon = await getTaxon(params.get('taxon'))
         document.getElementById('search_taxon').value = taxon.scientificName
 
+        await loadData()
+
         if (params.has('checklist-catalog') && params.get('checklist-catalog')) {
             const work = DATA.catalog[params.get('checklist-catalog').split(':')[0]]
             document.getElementById('search_checklist-catalog').value = work.title
         }
 
-        await loadData()
         const [results, checklist] = await getResults(taxon, params)
 
         for (const record of results) {
