@@ -190,7 +190,7 @@
     }
 
     async function getOccurrencesBySpecies (taxon, countryCode) {
-        const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&limit=0`
+        const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&year=0,9999&limit=0`
 
         const species = []
         const pageSize = 100
