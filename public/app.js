@@ -422,11 +422,13 @@
         for (const record of results) {
             if ('parent_proximity' in record) {
                 record._score = record.parent_proximity
-            } else if ('species_ratio' in record) {
-                const offset = 0.5
-                record._score = offset + (record.species_ratio * (1 - offset))
             } else {
-                record._score = 0
+                record._score = 1
+            }
+
+            if ('species_ratio' in record) {
+                const offset = 0.5
+                record._score *= offset + (record.species_ratio * (1 - offset))
             }
 
             if (!record.fulltext_url && !record.archive_url) {
