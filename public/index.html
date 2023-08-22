@@ -29,11 +29,22 @@
 
         <main>
             <div id="intro_wrapper">
-                Usage: take an organism that you want to identify. In the left field labeled "Taxon",
-                search and select the Latin name of the group of species that you know it is part of.
-                In the right field, paste coordinates (formatted like: "0.000,0.000") to the location
-                where you found the organism. This proof-of-concept will attempt to find the best
-                identification resource for your case.
+                <h2>Find identification resources</h2>
+
+                <p>
+                    <b>Usage:</b> Select an organism that you want to identify. In the left field labeled "Taxon",
+                    search and select the Latin name of the group of species that you know it is part of.
+                    In the right field, paste coordinates (formatted like: "0.000,0.000") to the location
+                    where you found the organism.
+                </p>
+
+                <p>
+                    <b>Checklists:</b> To calculate whether an identification resource is suitable for the
+                    given location, a checklist is used and compared against the list of species included
+                    in the key. This checklist can either be generated from GBIF occurrences, in which case
+                    the list consists of all species in the given country with occurrences in GBIF.
+                    Alternatively, a resource from the catalog can be used to compare against.
+                </p>
             </div>
 
             <div id="input_wrapper">
@@ -51,7 +62,7 @@
                     <div>
                         <legend>Checklist</legend>
                         <input type="radio" name="checklist" value="search" checked id="checklist_search">
-                        <label for="checklist_search">Checklist generated from GBIF observations</label>
+                        <label for="checklist_search">Checklist generated from GBIF occurrences</label>
 
                         <br>
 
