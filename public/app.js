@@ -1,11 +1,4 @@
 (async function () {
-    const DATA = {
-        catalog: await indexCsv('/assets/data/catalog.csv', 'id'),
-        resources: await loadKeys(),
-        gbif: await fetch('/assets/data/resources/gbif.index.json').then(response => response.json()),
-        places: await fetch('./data/places.json').then(response => response.json())
-    }
-
     function empty (element) {
         while (element.firstChild) {
             element.firstChild.remove()
@@ -164,9 +157,6 @@
         return results
     }
 
-    makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
-    makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
-
     async function getTaxon (query) {
         return fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}`).then(r => r.json())
     }
@@ -190,7 +180,7 @@
     }
 
     async function getOccurrencesBySpecies (taxon, countryCode) {
-        const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&year=0,9999&limit=0`
+        const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&taxon_key=${taxon}&year=0,9999&occurrence_status=present&limit=0`
 
         const species = []
         const pageSize = 100
@@ -374,6 +364,7 @@
         $missing.closest('dialog').showModal()
     }
 
+    const DATA = {}
     const RANKS = [
         'kingdom',
         'phylum',
@@ -394,11 +385,20 @@
         'variety',
         'form'
     ]
+
     function compareRanks (a, b) {
         return RANKS.indexOf(a) - RANKS.indexOf(b)
     }
 
-    fieldLabels.species_ratio = 'Coverage'
+    makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
+    makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
+
+    async function loadData () {
+        DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id')
+        DATA.resources = await loadKeys(),
+        DATA.gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
+        DATA.places = await fetch('./data/places.json').then(response => response.json())
+    }
 
     const params = new URLSearchParams(window.location.search)
     if (params.has('taxon') && params.has('location')) {
@@ -417,6 +417,7 @@
             document.getElementById('search_checklist-catalog').value = work.title
         }
 
+        await loadData()
         const [results, checklist] = await getResults(taxon, params)
 
         for (const record of results) {
@@ -571,5 +572,7 @@
 
             $results.appendChild($result)
         }
+    } else {
+        await loadData()
     }
 })()
