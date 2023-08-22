@@ -147,14 +147,10 @@
                     displayValue: row.title,
                     $result
                 })
-
-                if (results.length >= 10) {
-                    break
-                }
             }
         }
 
-        return results
+        return results.slice(0, 5)
     }
 
     async function getTaxon (query) {
