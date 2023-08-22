@@ -45,6 +45,10 @@
                     the list consists of all species in the given country with occurrences in GBIF.
                     Alternatively, a resource from the catalog can be used to compare against.
                 </p>
+
+                <p>
+                    <a href="#" onclick="license_info.showModal()">Data license</a>
+                </p>
             </div>
 
             <div id="input_wrapper">
@@ -87,6 +91,28 @@
 
             <ol id="missing_taxa">
             </ol>
+
+            <form method="dialog">
+                <button>Close</button>
+            </form>
+        </dialog>
+
+        <dialog id="license_info">
+            <h3>Data license</h3>
+
+            <ul>
+                <li>
+                    Search results, including the coverage, and checklists from the catalog are
+                    <a href="https://github.com/identification-resources/catalog/blob/main/LICENSE">licensed under CC0 1.0</a>.
+                </li>
+                <li>
+                    Checklists generated from GBIF occurrences use the GBIF API and data licensed under CC-BY-NC 4.0.
+                </li>
+                <li>
+                    Reverse geocoding (finding places and countries associated with the given coordinates) use APIs
+                    from <a href="http://wikidata.org/">Wikidata</a> and <a href="https://www.inaturalist.org/">iNaturalist</a>.
+                </li>
+            </ul>
 
             <form method="dialog">
                 <button>Close</button>
