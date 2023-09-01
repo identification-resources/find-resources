@@ -30,6 +30,11 @@ body > main > * {
   max-width: none;
 }
 
+details > * {
+  max-height: 14em;
+  overflow: auto;
+}
+
 @media screen and (max-width: 1058px) {
   body > main {
     grid-template-rows: auto auto auto;

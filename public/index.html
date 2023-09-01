@@ -87,10 +87,27 @@
         </main>
 
         <dialog>
-            <h3>Missing taxa</h3>
+            <h3>Taxonomic coverage</h3>
 
-            <ol id="missing_taxa">
-            </ol>
+            <p>
+                This resource includes <span id="species_count"></span> of the expected <span id="species_total"></span> species,
+                meaning <span id="species_ratio"></span>.
+            </p>
+            <p>Scaled by observations, this covers <span id="observation_ratio"></span> of observations.</p>
+
+            <details>
+                <summary>Matching taxa</summary>
+                <ol id="matching_taxa">
+                </ol>
+            </details>
+
+            <details>
+                <summary>Missing taxa</summary>
+                <ol id="missing_taxa">
+                </ol>
+            </details>
+
+            <br>
 
             <form method="dialog">
                 <button>Close</button>

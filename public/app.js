@@ -342,8 +342,50 @@
         return [results, checklist]
     }
 
+    function makePieChart (value) {
+        const $container = new DocumentFragment()
+        const $chart = document.createElement('span')
+        $chart.setAttribute('style', `
+            width: 1.5em;
+            height: 1.5em;
+            border-radius: 100%;
+            display: inline-block;
+            vertical-align: bottom;
+            background: conic-gradient(black 0%, black 0% ${value * 100}%, #989d89 ${value * 100}% 100%);
+        `.trim().replace(/\s+/g, ' '))
+        $container.append($chart, ` ${(value * 100).toFixed()}%`)
+        return $container
+    }
+
     async function openCoverageDialog (result, checklist) {
-        const missing = checklist.filter(taxon => !DATA.gbif[taxon.name] || !DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id)))
+        const matching = []
+        const missing = []
+
+        for (const taxon of checklist) {
+            const matched = DATA.gbif[taxon.name] && DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id))
+            if (matched) {
+                matching.push(taxon)
+            } else {
+                missing.push(taxon)
+            }
+        }
+
+        document.getElementById('species_count').textContent = (result.species_ratio * checklist.length).toFixed(0)
+        document.getElementById('species_total').textContent = checklist.length
+        document.getElementById('species_ratio').replaceChildren(makePieChart(result.species_ratio))
+        document.getElementById('observation_ratio').replaceChildren(makePieChart(result.observation_ratio))
+
+        const $matching = document.getElementById('matching_taxa')
+        empty($matching)
+
+        for (const taxon of matching) {
+            const $taxon = document.createElement('li')
+            const $taxonLink = document.createElement('a')
+            $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
+            $taxonLink.textContent = taxon.displayName || taxon.name
+            $taxon.appendChild($taxonLink)
+            $matching.appendChild($taxon)
+        }
 
         const $missing = document.getElementById('missing_taxa')
         empty($missing)
@@ -357,7 +399,8 @@
             $missing.appendChild($taxon)
         }
 
-        $missing.closest('dialog').showModal()
+        const $dialog = $missing.closest('dialog')
+        $dialog.showModal()
     }
 
     const DATA = {}
@@ -546,19 +589,8 @@
             // COLUMN 3
             const $coverageColumn = document.createElement('div')
             if (!isNaN(result.species_ratio)) {
-                const value = result.species_ratio
                 const $coverage = document.createElement('div')
-                const span = document.createElement('span')
-                span.setAttribute('style', `
-                    width: 1.5em;
-                    height: 1.5em;
-                    border-radius: 100%;
-                    display: inline-block;
-                    vertical-align: bottom;
-                    background: conic-gradient(black 0%, black 0% ${value * 100}%, #989d89 ${value * 100}% 100%);
-                `.trim().replace(/\s+/g, ' '))
-                $coverage.appendChild(span)
-                $coverage.append(` ${(value * 100).toFixed()}%`)
+                $coverage.appendChild(makePieChart(result.species_ratio))
                 $coverage.addEventListener('click', event => {
                     event.stopPropagation()
                     openCoverageDialog(result, checklist)
