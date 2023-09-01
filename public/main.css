@@ -45,6 +45,10 @@ details > * {
   html, body, body > main {
     height: auto;
   }
+
+  body {
+    overflow: auto;
+  }
 }
 
 #intro_wrapper { grid-area: intro; }
