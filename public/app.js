@@ -358,6 +358,8 @@
     }
 
     async function openCoverageDialog (result, checklist) {
+        const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'gbifAcceptedTaxonID')
+
         const matching = []
         const missing = []
 
@@ -382,7 +384,7 @@
             const $taxon = document.createElement('li')
             const $taxonLink = document.createElement('a')
             $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
-            $taxonLink.textContent = taxon.displayName || taxon.name
+            $taxonLink.textContent = taxon.displayName || resourceTaxa[taxon.name].scientificName || taxon.name
             $taxon.appendChild($taxonLink)
             $matching.appendChild($taxon)
         }
