@@ -294,8 +294,10 @@
                 DATA.catalog[catalogId],
                 resource.catalog || {}
             )
-            if (resource.scope) {
-                record.scope = resource.scope
+            for (const field in record) {
+                if (Array.isArray(record[field])) {
+                    record[field] = record[field].join('; ')
+                }
             }
             seenCatalogWorks.add(catalogId)
             results.push(record)
@@ -577,12 +579,14 @@
                 const languageNames = new Intl.DisplayNames(['en'], { type: 'language' })
                 const $language = document.createElement('b')
                 $language.textContent = 'Language'
-                $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)))
+                $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)).join(', '))
             }
             if (result.scope && result.scope.length) {
+                $info.append(document.createElement('br'))
+
                 const $scope = document.createElement('b')
                 $scope.textContent = 'Scope'
-                $info.append(document.createElement('br'), $scope, ' ', result.scope)
+                $info.append($scope, ' ', result.scope.split('; ').join(', '))
             }
             $titleColumn.appendChild($info)
 
