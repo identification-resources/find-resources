@@ -525,8 +525,10 @@
 
             const $result = document.createElement('div')
             $result.setAttribute('class', 'result')
-            $result.addEventListener('click', () => {
-                window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
+            $result.addEventListener('click', event => {
+                if (event.target.tagName !== 'A') {
+                    window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
+                }
             })
 
             // COLUMN 1
@@ -566,7 +568,7 @@
                 $fulltext.innerHTML = octicons.available
 
                 const $fulltextLink = document.createElement('a')
-                $fulltextLink.setAttribute('target', 'blank')
+                $fulltextLink.setAttribute('target', '_blank')
                 $fulltextLink.setAttribute('href', fulltext)
                 $fulltextLink.textContent = fulltext
                 $fulltext.append(' ', $fulltextLink)
