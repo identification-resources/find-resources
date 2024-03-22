@@ -254,6 +254,7 @@
         const allPlaces = await getPlaces(params.get('location'))
         const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
+        const country = allPlaces.find(place => place.place_type === 12)
 
         // Get checklist
         let checklist
@@ -269,10 +270,12 @@
                     displayName: subtaxa.get(taxon).scientificName,
                     count: 0
                 }))
-        } else {
+        } else if (params.get('checklist') === 'search' && country) {
             // Use GBIF occurrence data
-            const countryCode = await getCountryCode(allPlaces.find(place => place.place_type === 12).id)
+            const countryCode = await getCountryCode(country.id)
             checklist = await getOccurrencesBySpecies(taxon.key, countryCode)
+        } else {
+            checklist = []
         }
 
         console.log(parentTaxa, places, checklist)
