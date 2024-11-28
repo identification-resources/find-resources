@@ -162,7 +162,7 @@
     }
 
     async function getPlaces (query) {
-        const [lat, long] = query.split(',')
+        const [lat, long] = query.split(/,\s*/g)
         const response = await fetch(`https://api.inaturalist.org/v1/places/nearby?nelat=${lat}&nelng=${long}&swlat=${lat}&swlng=${long}`)
         const results = await response.json()
         return results.results.standard
