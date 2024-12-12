@@ -519,8 +519,16 @@
             }
 
             if (record.date) {
-                const year = record.date.split('-')[0]
-                record._score *= 1 - (1 / year)
+                const year = parseInt(record.date.split('-')[0])
+
+                if (!isNaN(year)) {
+                    // TODO date of observation
+                    const currentYear = new Date().getFullYear()
+                    const firstYear = Math.min(year, 1850)
+
+                    const offset = 0.5
+                    record._score *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
+                }
             }
         }
 
