@@ -63,9 +63,6 @@ form > div {
   grid-area: results;
   overflow-y: auto;
 }
-#results_wrapper table {
-  min-width: 100%;
-}
 
 .result {
   border-bottom: 1px solid black;
@@ -83,21 +80,26 @@ form > div {
   padding: 0.5em;
 }
 
-#results > div > div:nth-child(1) {
+.result > div:nth-child(1) {
   background-color: #ede5d2;
   grid-area: a;
 }
 
-#results > div > div:nth-child(2) {
+.result > div:nth-child(2) {
   grid-area: b;
 }
 
-#results > div > div:nth-child(3) {
+.result > div:nth-child(3) {
   grid-area: c;
 }
 
-#results > div h3, #results > div p {
+.result h3, .result p {
   margin: 0;
+}
+
+#results_versions {
+  border-top: 1px solid black;
+  margin-bottom: 1em;
 }
 
 @media screen and (max-width: 600px) {

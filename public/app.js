@@ -466,10 +466,9 @@
 
         const $info = document.createElement('p')
         {
-            const languageNames = new Intl.DisplayNames(['en'], { type: 'language' })
             const $language = document.createElement('b')
             $language.textContent = 'Language'
-            $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)).join(', '))
+            $info.append($language, ' ', result.language.split('; ').map(language => LANGUAGE_NAMES.of(language)).join(', '))
         }
         if (result.scope && result.scope.length) {
             $info.append(document.createElement('br'))
@@ -477,6 +476,18 @@
             const $scope = document.createElement('b')
             $scope.textContent = 'Scope'
             $info.append($scope, ' ', result.scope.split('; ').join(', '))
+        }
+        if (result._versions && result._versions.length > 1) {
+            $info.append(document.createElement('br'), document.createElement('br'))
+
+            const $versions = document.createElement('a')
+            $versions.setAttribute('href', '#')
+            $versions.textContent = `View all ${result._versions.length} editions/versions`
+            $versions.addEventListener('click', event => {
+                event.stopPropagation()
+                openVersionsDialog(result, checklist)
+            })
+            $info.append($versions)
         }
         $titleColumn.appendChild($info)
 
@@ -568,6 +579,18 @@
         $dialog.showModal()
     }
 
+    function openVersionsDialog (result, checklist) {
+        const $versions = document.getElementById('results_versions')
+        empty($versions)
+
+        for (const version of result._versions) {
+            $versions.appendChild(makeResult(version, checklist))
+        }
+
+        const $dialog = $versions.closest('dialog')
+        $dialog.showModal()
+    }
+
     const DATA = {}
     const RANKS = [
         'kingdom',
@@ -589,6 +612,7 @@
         'variety',
         'form'
     ]
+    const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
 
     function compareRanks (a, b) {
         return RANKS.indexOf(a) - RANKS.indexOf(b)
@@ -632,12 +656,34 @@
         results.sort((a, b) => b._score - a._score)
 
         // Group
-        // TODO
+        const groupedResults = {}
+        for (const result of results) {
+            let versionId = result.version_of || result.id
+            if (result._resource) {
+                if (result._resource.catalog && result._resource.catalog.version_of) {
+                    versionId = result._resource.catalog.version_of
+                } else {
+                    const resourceId = result._resource.id.split(':').pop()
+                    versionId += ':' + resourceId
+                }
+            } else {
+                versionId += ':1'
+            }
+
+            if (groupedResults[versionId]) {
+                groupedResults[versionId]._versions.push(result)
+            } else {
+                groupedResults[versionId] = {
+                    ...result,
+                    _versions: [result]
+                }
+            }
+        }
 
         // Render
         const $results = document.getElementById('results')
         empty($results)
-        for (const result of results) {
+        for (const result of Object.values(groupedResults)) {
             if (result._score > 0) {
                 $results.appendChild(makeResult(result, checklist))
             }
