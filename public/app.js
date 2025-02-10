@@ -54,10 +54,13 @@
         })
     }
 
+    async function fetchJson (...args) {
+        return fetch(...args).then(response => response.json())
+    }
+
     async function getTaxonSuggestions (query) {
         const q = encodeURIComponent(query)
-        const response = await fetch(`https://api.gbif.org/v1/species/suggest?q=${q}&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`)
-        const results = await response.json()
+        const results = await fetchJson(`https://api.gbif.org/v1/species/suggest?q=${q}&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`)
         return results.slice(0, 5).map(function (result) {
             const $result = new DocumentFragment()
 
@@ -154,7 +157,7 @@
     }
 
     async function getTaxon (query) {
-        return fetch(`https://api.gbif.org/v1/species/${params.get('taxon')}`).then(r => r.json())
+        return fetchJson(`https://api.gbif.org/v1/species/${query}`)
     }
 
     function getTaxonParents (taxon) {
@@ -163,16 +166,14 @@
 
     async function getPlaces (query) {
         const [lat, long] = query.split(/,\s*/g)
-        const response = await fetch(`https://api.inaturalist.org/v1/places/nearby?nelat=${lat}&nelng=${long}&swlat=${lat}&swlng=${long}`)
-        const results = await response.json()
+        const results = await fetchJson(`https://api.inaturalist.org/v1/places/nearby?nelat=${lat}&nelng=${long}&swlat=${lat}&swlng=${long}`)
         return results.results.standard
     }
 
     async function getCountryCode (id) {
         const query = encodeURIComponent(`SELECT*WHERE{"${id}"^wdt:P7471/wdt:P131*/wdt:P297?c}`)
-        return fetch('https://query.wikidata.org/sparql?format=json&query=' + query)
-            .then(response => response.json())
-            .then(response => response.results.bindings[0].c.value)
+        const results = await fetchJson('https://query.wikidata.org/sparql?format=json&query=' + query)
+        return results.results.bindings[0].c.value
     }
 
     async function getOccurrencesBySpecies (taxon, countryCode) {
@@ -183,7 +184,7 @@
         let offset = 0
         while (true) {
             const url = `${baseUrl}&facetLimit=${pageSize}&facetOffset=${offset}`
-            const response = await fetch(url).then(response => response.json()).then(response => response.facets[0].counts)
+            const response = await fetchJson(url).then(response => response.facets[0].counts)
             species.push(...response)
             if (response.length < pageSize) {
                 return species
@@ -201,7 +202,7 @@
         let offset = 0
         while (true) {
             const url = `${baseUrl}&limit=${pageSize}&offset=${offset}`
-            const response = await fetch(url).then(response => response.json())
+            const response = await fetchJson(url)
 
             for (const result of response.results) {
                 species.set(result.key, result)
@@ -347,6 +348,156 @@
         return [results, checklist]
     }
 
+    function scoreResult (record, taxon, params) {
+        let score
+
+        if ('parent_proximity' in record) {
+            score = record.parent_proximity
+        } else {
+            score = 1
+        }
+
+        if ('species_ratio' in record) {
+            const offset = 0.5
+            score *= offset + (record.species_ratio * (1 - offset))
+        }
+
+        if (!record.fulltext_url && !record.archive_url) {
+            score *= 0.9
+        }
+
+        if (record.target_taxa) {
+            let every = false
+            let some = false
+            for (const target of record.target_taxa.split('; ')) {
+                const match = compareRanks(taxon.rank.toLowerCase(), target) < 0
+                every = every && match
+                some = some || match
+            }
+            score *= every ? 1 : some ? 0.9 : 0;
+        }
+
+        if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
+            score *= 0.9
+        }
+
+        if (record.key_type) {
+            const types = record.key_type.split('; ')
+            if (types.includes('key') || types.includes('matrix')) {
+                // score *= 1
+            } else if (types.includes('reference')) {
+                score *= 0.9
+            } else if (types.includes('gallery')) {
+                score *= 0.8
+            } else {
+                score *= 0.7
+            }
+        }
+
+        if (record.date) {
+            const year = parseInt(record.date.split('-')[0])
+
+            if (!isNaN(year)) {
+                // TODO date of observation
+                const currentYear = new Date().getFullYear()
+                const firstYear = Math.min(year, 1850)
+
+                const offset = 0.5
+                score *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
+            }
+        }
+
+        return score
+    }
+
+    function makeResult (result, checklist) {
+        const $result = document.createElement('div')
+        $result.setAttribute('class', 'result')
+        $result.addEventListener('click', event => {
+            if (event.target.tagName !== 'A') {
+                window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
+            }
+        })
+
+        // COLUMN 1
+        const $idColumn = document.createElement('div')
+
+        const $idLink = document.createElement('a')
+        $idLink.setAttribute('target', 'detail')
+        $idLink.setAttribute('href', `/catalog/detail?id=${result.id}`)
+        $idLink.textContent = result.id
+        $idColumn.appendChild($idLink)
+
+        const $keyTypes = document.createElement('div')
+        $keyTypes.innerHTML = result.key_type.split('; ').map(value => octicons[value] || value).join(' ')
+        $idColumn.appendChild($keyTypes)
+
+        $result.appendChild($idColumn)
+
+        // COLUMN 2
+        const $titleColumn = document.createElement('div')
+
+        const $title = document.createElement('h3')
+        $title.innerHTML = octicons[result.entry_type] || ''
+        $title.append(' ' + result.title)
+        if (result.date) {
+            const $year = document.createElement('span')
+            $year.setAttribute('style', 'color: #484b3e;')
+            $year.textContent = `(${result.date.replace(/-[^\/]+/g, '')})`
+            $title.append(' ', $year)
+        }
+        $titleColumn.appendChild($title)
+
+        const fulltext = result.fulltext_url || result.archive_url
+        if (fulltext) {
+            const $fulltext = document.createElement('p')
+
+            $fulltext.setAttribute('style', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;')
+            $fulltext.innerHTML = octicons.available
+
+            const $fulltextLink = document.createElement('a')
+            $fulltextLink.setAttribute('target', '_blank')
+            $fulltextLink.setAttribute('href', fulltext)
+            $fulltextLink.textContent = fulltext
+            $fulltext.append(' ', $fulltextLink)
+
+            $titleColumn.appendChild($fulltext)
+        }
+
+        const $info = document.createElement('p')
+        {
+            const languageNames = new Intl.DisplayNames(['en'], { type: 'language' })
+            const $language = document.createElement('b')
+            $language.textContent = 'Language'
+            $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)).join(', '))
+        }
+        if (result.scope && result.scope.length) {
+            $info.append(document.createElement('br'))
+
+            const $scope = document.createElement('b')
+            $scope.textContent = 'Scope'
+            $info.append($scope, ' ', result.scope.split('; ').join(', '))
+        }
+        $titleColumn.appendChild($info)
+
+        $result.appendChild($titleColumn)
+
+        // COLUMN 3
+        const $coverageColumn = document.createElement('div')
+        if (!isNaN(result.species_ratio)) {
+            const $coverage = document.createElement('div')
+            $coverage.appendChild(makePieChart(result.species_ratio))
+            $coverage.addEventListener('click', event => {
+                event.stopPropagation()
+                openCoverageDialog(result, checklist)
+            })
+            $coverageColumn.appendChild($coverage)
+        }
+        $result.appendChild($coverageColumn)
+
+        return $result
+    }
+
     function makePieChart (value) {
         const $container = new DocumentFragment()
         const $chart = document.createElement('span')
@@ -449,8 +600,8 @@
     async function loadData () {
         DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id')
         DATA.resources = await loadKeys(),
-        DATA.gbif = await fetch('/assets/data/resources/gbif.index.json').then(response => response.json())
-        DATA.places = await fetch('./data/places.json').then(response => response.json())
+        DATA.gbif = await fetchJson('/assets/data/resources/gbif.index.json')
+        DATA.places = await fetchJson('./data/places.json')
     }
 
     const params = new URLSearchParams(window.location.search)
@@ -474,158 +625,22 @@
 
         const [results, checklist] = await getResults(taxon, params)
 
-        for (const record of results) {
-            if ('parent_proximity' in record) {
-                record._score = record.parent_proximity
-            } else {
-                record._score = 1
-            }
-
-            if ('species_ratio' in record) {
-                const offset = 0.5
-                record._score *= offset + (record.species_ratio * (1 - offset))
-            }
-
-            if (!record.fulltext_url && !record.archive_url) {
-                record._score *= 0.9
-            }
-
-            if (record.target_taxa) {
-                let every = false
-                let some = false
-                for (const target of record.target_taxa.split('; ')) {
-                    const match = compareRanks(taxon.rank.toLowerCase(), target) < 0
-                    every = every && match
-                    some = some || match
-                }
-                record._score *= every ? 1 : some ? 0.9 : 0;
-            }
-
-            if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
-                record._score *= 0.9
-            }
-
-            if (record.key_type) {
-                const types = record.key_type.split('; ')
-                if (types.includes('key') || types.includes('matrix')) {
-                    // record._score *= 1
-                } else if (types.includes('reference')) {
-                    record._score *= 0.9
-                } else if (types.includes('gallery')) {
-                    record._score *= 0.8
-                } else {
-                    record._score *= 0.7
-                }
-            }
-
-            if (record.date) {
-                const year = parseInt(record.date.split('-')[0])
-
-                if (!isNaN(year)) {
-                    // TODO date of observation
-                    const currentYear = new Date().getFullYear()
-                    const firstYear = Math.min(year, 1850)
-
-                    const offset = 0.5
-                    record._score *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
-                }
-            }
+        // Sort
+        for (const result of results) {
+            result._score = scoreResult(result, taxon, params)
         }
-
         results.sort((a, b) => b._score - a._score)
 
+        // Group
+        // TODO
+
+        // Render
         const $results = document.getElementById('results')
         empty($results)
         for (const result of results) {
-            if (result._score === 0) {
-                continue
+            if (result._score > 0) {
+                $results.appendChild(makeResult(result, checklist))
             }
-
-            const $result = document.createElement('div')
-            $result.setAttribute('class', 'result')
-            $result.addEventListener('click', event => {
-                if (event.target.tagName !== 'A') {
-                    window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
-                }
-            })
-
-            // COLUMN 1
-            const $idColumn = document.createElement('div')
-
-            const $idLink = document.createElement('a')
-            $idLink.setAttribute('target', 'detail')
-            $idLink.setAttribute('href', `/catalog/detail?id=${result.id}`)
-            $idLink.textContent = result.id
-            $idColumn.appendChild($idLink)
-
-            const $keyTypes = document.createElement('div')
-            $keyTypes.innerHTML = result.key_type.split('; ').map(value => octicons[value] || value).join(' ')
-            $idColumn.appendChild($keyTypes)
-
-            $result.appendChild($idColumn)
-
-            // COLUMN 2
-            const $titleColumn = document.createElement('div')
-
-            const $title = document.createElement('h3')
-            $title.innerHTML = octicons[result.entry_type] || ''
-            $title.append(' ' + result.title)
-            if (result.date) {
-                const $year = document.createElement('span')
-                $year.setAttribute('style', 'color: #484b3e;')
-                $year.textContent = `(${result.date.replace(/-[^\/]+/g, '')})`
-                $title.append(' ', $year)
-            }
-            $titleColumn.appendChild($title)
-
-            const fulltext = result.fulltext_url || result.archive_url
-            if (fulltext) {
-                const $fulltext = document.createElement('p')
-
-                $fulltext.setAttribute('style', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;')
-                $fulltext.innerHTML = octicons.available
-
-                const $fulltextLink = document.createElement('a')
-                $fulltextLink.setAttribute('target', '_blank')
-                $fulltextLink.setAttribute('href', fulltext)
-                $fulltextLink.textContent = fulltext
-                $fulltext.append(' ', $fulltextLink)
-
-                $titleColumn.appendChild($fulltext)
-            }
-
-            const $info = document.createElement('p')
-            {
-                const languageNames = new Intl.DisplayNames(['en'], { type: 'language' })
-                const $language = document.createElement('b')
-                $language.textContent = 'Language'
-                $info.append($language, ' ', result.language.split('; ').map(language => languageNames.of(language)).join(', '))
-            }
-            if (result.scope && result.scope.length) {
-                $info.append(document.createElement('br'))
-
-                const $scope = document.createElement('b')
-                $scope.textContent = 'Scope'
-                $info.append($scope, ' ', result.scope.split('; ').join(', '))
-            }
-            $titleColumn.appendChild($info)
-
-            $result.appendChild($titleColumn)
-
-            // COLUMN 3
-            const $coverageColumn = document.createElement('div')
-            if (!isNaN(result.species_ratio)) {
-                const $coverage = document.createElement('div')
-                $coverage.appendChild(makePieChart(result.species_ratio))
-                $coverage.addEventListener('click', event => {
-                    event.stopPropagation()
-                    openCoverageDialog(result, checklist)
-                })
-                $coverageColumn.appendChild($coverage)
-            }
-            $result.appendChild($coverageColumn)
-
-            $results.appendChild($result)
         }
     } else {
         await loadData()
