@@ -108,6 +108,43 @@
         })
     }
 
+    async function getGbifDatasetSuggestions (query, signal) {
+        const q = encodeURIComponent(query)
+        const results = await fetchJson(`https://api.gbif.org/v1/dataset/suggest?q=${q}&type=CHECKLIST`, { signal })
+        return results.slice(0, 5).map(function (result) {
+            const $result = new DocumentFragment()
+
+            const $rank = document.createElement('span')
+            $rank.textContent = result.type.toLowerCase()
+            $rank.setAttribute('class', 'search-taxon-rank')
+            $result.appendChild($rank)
+
+            {
+                const $main = document.createElement('span')
+                $main.setAttribute('class', 'search-taxon-main')
+
+                const $full = document.createElement('span')
+                $full.setAttribute('class', 'search-taxon')
+                $main.appendChild($full)
+
+                const $name = document.createElement('span')
+                $name.textContent = result.title
+                $name.setAttribute('class', 'search-taxon-name')
+                $full.prepend($name)
+
+                $result.append($main)
+            }
+            {
+                const $sub = document.createElement('span')
+                $sub.textContent = result.key
+                $sub.setAttribute('class', 'search-taxon-sub')
+                $result.append($sub)
+            }
+
+            return { value: result.key, displayValue: result.title, $result }
+        })
+    }
+
     // From https://github.com/inaturalist/inaturalist/blob/b106ee49c1194f369d646507cb72ebe3fbc366b5/app/models/place.rb#L113
     // Licensed MIT
     const INAT_PLACE_TYPES = {
@@ -390,6 +427,31 @@
         }
     }
 
+    async function getSpeciesByDataset (taxon, dataset) {
+        const { results: [{ key: datasetTaxon }] } = await fetchJson(`https://api.gbif.org/v1/species/${taxon}/related?datasetKey=${dataset}`)
+        const baseUrl = `https://api.gbif.org/v1/species/search?highertaxonKey=${datasetTaxon}&datasetKey=${dataset}&rank=SPECIES&status=ACCEPTED`
+
+        const species = []
+        const pageSize = 100
+        let offset = 0
+        while (true) {
+            const url = `${baseUrl}&limit=${pageSize}&offset=${offset}`
+            const response = await fetchJson(url)
+
+            species.push(...response.results.map(result => ({
+                name: result.nubKey,
+                displayName: result.scientificName,
+                count: 0
+            })))
+
+            if (response.endOfRecords) {
+                return species
+            } else {
+                offset += pageSize
+            }
+        }
+    }
+
     async function getGbifSubtaxa (taxon) {
         const baseUrl = `https://api.gbif.org/v1/species/search?highertaxonKey=${taxon}&rank=SPECIES`
 
@@ -471,6 +533,9 @@
             // Use GBIF occurrence data
             const countryCode = await getCountryCode(country.id)
             checklist = await getOccurrencesBySpecies(taxon.key, countryCode)
+        } else if (params.get('checklist') === 'gbif_dataset') {
+            const datasetKey = params.get('checklist-gbif-dataset')
+            checklist = await getSpeciesByDataset(taxon.key, datasetKey)
         } else {
             checklist = []
         }
@@ -816,6 +881,7 @@
 
     makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
     makeInputControl('location', 'Location', getLocationSuggestions)
+    makeInputControl('checklist-gbif-dataset', 'GBIF dataset', getGbifDatasetSuggestions)
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
     document.querySelector('#input_wrapper form').addEventListener('formdata', function (event) {
@@ -840,6 +906,7 @@
         document.getElementById('taxon').value = params.get('taxon')
         document.getElementById('location').value = params.get('location')
         document.getElementById('checklist_' + (params.get('checklist') || 'search')).checked = true
+        document.getElementById('checklist-gbif-dataset').value = params.get('checklist-gbif-dataset')
         document.getElementById('checklist-catalog').value = params.get('checklist-catalog')
 
         const taxon = await getTaxon(params.get('taxon'))
@@ -847,6 +914,12 @@
         document.getElementById('search_location').value = params.get('location')
 
         await loadData()
+
+        if (params.has('checklist-gbif-dataset') && params.get('checklist-gbif-dataset')) {
+            const key = params.get('checklist-gbif-dataset')
+            const dataset = await fetchJson(`https://api.gbif.org/v1/dataset/${key}`)
+            document.getElementById('search_checklist-gbif-dataset').value = dataset.title
+        }
 
         if (params.has('checklist-catalog') && params.get('checklist-catalog')) {
             const work = DATA.catalog[params.get('checklist-catalog').split(':')[0]]
