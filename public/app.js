@@ -29,8 +29,20 @@
         const $searchResults = document.createElement('ol')
         $searchGroup.appendChild($searchResults)
 
+        let controller
         $searchInput.addEventListener('input', async function () {
-            const results = await getSuggestions($searchInput.value)
+            if (controller && !controller.aborted) {
+                controller.abort()
+            }
+
+            controller = new AbortController()
+            const results = await getSuggestions($searchInput.value, controller.signal).catch(error => {
+                if (error instanceof DOMException && error.name === 'AbortError') {
+                    return []
+                } else {
+                    throw error
+                }
+            })
 
             empty($searchResults)
             for (const result of results) {
@@ -58,9 +70,9 @@
         return fetch(...args).then(response => response.json())
     }
 
-    async function getTaxonSuggestions (query) {
+    async function getTaxonSuggestions (query, signal) {
         const q = encodeURIComponent(query)
-        const results = await fetchJson(`https://api.gbif.org/v1/species/suggest?q=${q}&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`)
+        const results = await fetchJson(`https://api.gbif.org/v1/species/suggest?q=${q}&datasetKey=d7dddbf4-2cf0-4f39-9b2a-bb099caae36c`, { signal })
         return results.slice(0, 5).map(function (result) {
             const $result = new DocumentFragment()
 
@@ -93,6 +105,190 @@
             }
 
             return { value: result.key, displayValue: result.scientificName, $result }
+        })
+    }
+
+    // From https://github.com/inaturalist/inaturalist/blob/b106ee49c1194f369d646507cb72ebe3fbc366b5/app/models/place.rb#L113
+    // Licensed MIT
+    const INAT_PLACE_TYPES = {
+        '0': 'Undefined',
+        '1': 'Building',
+        '2': 'Street Segment',
+        '3': 'Nearby Building',
+        '5': 'Intersection',
+        '6': 'Street',
+        '7': 'Town',
+        '8': 'State',
+        '9': 'County',
+        '10': 'Local Administrative Area',
+        '11': 'Postal Code',
+        '12': 'Country',
+        '13': 'Island',
+        '14': 'Airport',
+        '15': 'Drainage',
+        '16': 'Land Feature',
+        '17': 'Miscellaneous',
+        '18': 'Nationality',
+        '19': 'Supername',
+        '20': 'Point of Interest',
+        '21': 'Region',
+        '22': 'Suburb',
+        '23': 'Sports Team',
+        '24': 'Colloquial',
+        '25': 'Zone',
+        '26': 'Historical State',
+        '27': 'Historical County',
+        '29': 'Continent',
+        '31': 'Time Zone',
+        '32': 'Nearby Intersection',
+        '33': 'Estate',
+        '35': 'Historical Town',
+        '36': 'Aggregate',
+        '100': 'Open Space',
+        '101': 'Territory',
+        '102': 'District',
+        '103': 'Province',
+        '1000': 'Municipality',
+        '1001': 'Parish',
+        '1002': 'Department Segment',
+        '1003': 'City Building',
+        '1004': 'Commune',
+        '1005': 'Governorate',
+        '1006': 'Prefecture',
+        '1007': 'Canton',
+        '1008': 'Republic',
+        '1009': 'Division',
+        '1010': 'Subdivision',
+        '1011': 'Village block',
+        '1012': 'Sum',
+        '1013': 'Unknown',
+        '1014': 'Shire',
+        '1015': 'Prefecture City',
+        '1016': 'Regency',
+        '1017': 'Constituency',
+        '1018': 'Local Authority',
+        '1019': 'Poblacion',
+        '1020': 'Delegation'
+    }
+
+    const INAT_PLACE_NAMES = {}
+    async function cachePlaceNames (ids) {
+        const unknown = new Set()
+        const promises = new Set()
+
+        for (const id of ids) {
+            if (INAT_PLACE_NAMES[id] instanceof Promise) {
+                promises.add(INAT_PLACE_NAMES[id])
+            } else if (!INAT_PLACE_NAMES[id]) {
+                unknown.add(id)
+            }
+        }
+
+        await Promise.all([...promises])
+
+        if (!unknown.size) {
+            return
+        }
+
+        const request = fetchJson(`https://api.inaturalist.org/v1/places/${[...unknown].join(',')}`)
+        for (const id of unknown) {
+            unknown[id] = request
+        }
+
+        const { results } = await request
+        for (const result of results) {
+            INAT_PLACE_NAMES[result.id] = result.name
+        }
+    }
+
+    async function getLocationSuggestions (query, signal) {
+        if (query.match(/^-?[0-9.]+,\s*-?[0-9.]+$/)) {
+            const [lat, long] = query.split(/,\s*/)
+
+            const $result = new DocumentFragment()
+
+            const $rank = document.createElement('span')
+            $rank.textContent = 'coordinates'
+            $rank.setAttribute('class', 'search-taxon-rank')
+            $result.appendChild($rank)
+
+            {
+                const $main = document.createElement('span')
+                $main.setAttribute('class', 'search-taxon-main')
+                $result.append($main)
+
+                const $full = document.createElement('span')
+                $full.setAttribute('class', 'search-taxon')
+                $main.appendChild($full)
+
+                const $lat = document.createElement('span')
+                $lat.textContent = lat
+                $lat.setAttribute('class', 'search-taxon-name')
+                $full.append($lat, ' N')
+
+                const $long = document.createElement('span')
+                $long.textContent = long
+                $long.setAttribute('class', 'search-taxon-name')
+                $full.append(', ', $long, ' E')
+            }
+
+            return [
+                {
+                    value: [lat, long],
+                    displayValue: query,
+                    $result
+                }
+            ]
+        }
+
+        const q = encodeURIComponent(query)
+        const { results } = await fetchJson(`https://api.inaturalist.org/v1/places/autocomplete?q=${q}`, { signal })
+        const suggestions = results.slice(0, 5)
+
+        await cachePlaceNames(suggestions.flatMap(result => result.ancestor_place_ids || []))
+
+        return suggestions.map(function (result) {
+            const $result = new DocumentFragment()
+
+            const $rank = document.createElement('span')
+            $rank.textContent = INAT_PLACE_TYPES[result.place_type]
+            $rank.setAttribute('class', 'search-taxon-rank')
+            $result.appendChild($rank)
+
+            {
+                const $main = document.createElement('span')
+                $main.setAttribute('class', 'search-taxon-main')
+
+                const $full = document.createElement('span')
+                $full.setAttribute('class', 'search-taxon')
+                $main.appendChild($full)
+
+                const $name = document.createElement('span')
+                $name.setAttribute('class', 'search-taxon-name')
+
+                if (result.display_name.startsWith(result.name)) {
+                    $name.textContent = result.name
+                    $full.append($name, result.display_name.slice(result.name.length))
+                } else {
+                    $name.textContent = result.display_name
+                    $full.append($name)
+                }
+
+                $result.append($main)
+            }
+            if (result.ancestor_place_ids) {
+                const $sub = document.createElement('span')
+                const places = result.ancestor_place_ids.map(id => INAT_PLACE_NAMES[id])
+                $sub.textContent = places.join(' > ')
+                $sub.setAttribute('class', 'search-taxon-sub')
+                $result.append($sub)
+            }
+
+            return {
+                value: result.location,
+                displayValue: result.display_name,
+                $result
+            }
         })
     }
 
@@ -619,6 +815,7 @@
     }
 
     makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
+    makeInputControl('location', 'Location', getLocationSuggestions)
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
     async function loadData () {
@@ -639,6 +836,7 @@
 
         const taxon = await getTaxon(params.get('taxon'))
         document.getElementById('search_taxon').value = taxon.scientificName
+        document.getElementById('search_location').value = params.get('location')
 
         await loadData()
 
