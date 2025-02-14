@@ -818,6 +818,14 @@
     makeInputControl('location', 'Location', getLocationSuggestions)
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
+    document.querySelector('#input_wrapper form').addEventListener('formdata', function (event) {
+        for (const [key, value] of event.formData) {
+            if (value === '') {
+                event.formData.delete(key)
+            }
+        }
+    })
+
     async function loadData () {
         DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id')
         DATA.resources = await loadKeys(),
