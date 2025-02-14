@@ -812,6 +812,12 @@
         document.getElementById('species_ratio').replaceChildren(makePieChart(result.species_ratio))
         document.getElementById('observation_ratio').replaceChildren(makePieChart(result.observation_ratio))
 
+        if (isNaN(result.observation_ratio)) {
+            document.getElementById('observation_ratio_text').setAttribute('style', 'display: none;')
+        } else {
+            document.getElementById('observation_ratio_text').removeAttribute('style')
+        }
+
         const $matching = document.getElementById('matching_taxa')
         empty($matching)
 
