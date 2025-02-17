@@ -736,7 +736,7 @@
         if (result.date) {
             const $year = document.createElement('span')
             $year.setAttribute('style', 'color: #484b3e;')
-            $year.textContent = `(${result.date.replace(/-[^\/]+/g, '')})`
+            $year.textContent = `(${result.date.replace(/-[^\/]+/g, '').replace('/', '\u2013')})`
             $title.append(' ', $year)
         }
         $titleColumn.appendChild($title)
