@@ -479,22 +479,54 @@
         const countsTotal = checklist.reduce((sum, species) => sum + species.count, 0)
         const resources = {}
 
+        function countSpeciesForResource (resourceId, species, count) {
+            if (!(resourceId in resources)) {
+                resources[resourceId] = {
+                    speciesRatio: 0,
+                    observationRatio: 0,
+                    missing: new Set(checklist.map(species => species.name))
+                }
+            }
+            if (resources[resourceId].missing.has(species)) {
+                resources[resourceId].speciesRatio += 1 / speciesCount
+                resources[resourceId].observationRatio += count / countsTotal
+                resources[resourceId].missing.delete(species)
+            }
+
+            // Count species for parent entries, in case do not already have
+            // a species list.
+            const workId = resourceId.match(/^B\d+/)[0]
+            if (DATA.catalog[workId].part_of) {
+                const parentWorkIds = DATA.catalog[workId].part_of.split('; ')
+                for (const parentWorkId of parentWorkIds) {
+                    if (!DATA.resources[parentWorkId + ':1']) {
+                        countSpeciesForResourceParent(parentWorkId, species, count)
+                    }
+                }
+            }
+        }
+
+        function countSpeciesForResourceParent (parentWorkId, species, count) {
+            const parentResourceId = parentWorkId + ':0'
+
+            // Insert virtual resource into entity index
+            if (!DATA.resources[parentResourceId]) {
+                DATA.resources[parentResourceId] = { id: parentResourceId, taxa: [] }
+            }
+
+            // Insert virtual resource into GBIF index
+            if (!DATA.gbif[species].includes(parentResourceId)) {
+                DATA.gbif[species].push(parentResourceId)
+            }
+
+            countSpeciesForResource(parentResourceId, species, count)
+        }
+
         for (const { name: species, count } of checklist) {
             if (species in DATA.gbif) {
                 for (const id of DATA.gbif[species]) {
-                    const resourceId = id.replace(/:[1-9]\d*$/, '')
-                    if (!(resourceId in resources)) {
-                        resources[resourceId] = {
-                            speciesRatio: 0,
-                            observationRatio: 0,
-                            missing: new Set(checklist.map(species => species.name))
-                        }
-                    }
-                    if (resources[resourceId].missing.has(species)) {
-                        resources[resourceId].speciesRatio += 1 / speciesCount
-                        resources[resourceId].observationRatio += count / countsTotal
-                        resources[resourceId].missing.delete(species)
-                    }
+                    const resourceId = id.match(/^B\d+:\d+/)[0]
+                    countSpeciesForResource(resourceId, species, count)
                 }
             }
         }
@@ -548,7 +580,7 @@
         const matchingResources = await findGbifMatches(checklist)
         const seenCatalogWorks = new Set()
         for (const resourceId in matchingResources) {
-            const catalogId = resourceId.replace(/:[1-9]\d*$/, '')
+            const catalogId = resourceId.replace(/:\d+$/, '')
             const resource = DATA.resources[resourceId]
             const record = Object.assign(
                 {
@@ -786,12 +818,15 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
         const resourceTaxonNames = {}
-        for (const id in resourceTaxa) {
-            const gbif = resourceTaxa[id].gbifAcceptedTaxonID
-            if (!resourceTaxonNames[gbif] || resourceTaxa[id].taxonomicStatus === 'accepted') {
-                resourceTaxonNames[gbif] = resourceTaxa[id].scientificName
+
+        if (!result._resource.id.endsWith(':0')) {
+            const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
+            for (const id in resourceTaxa) {
+                const gbif = resourceTaxa[id].gbifAcceptedTaxonID
+                if (!resourceTaxonNames[gbif] || resourceTaxa[id].taxonomicStatus === 'accepted') {
+                    resourceTaxonNames[gbif] = resourceTaxa[id].scientificName
+                }
             }
         }
 
