@@ -795,6 +795,9 @@
                 event.stopPropagation()
                 openCoverageDialog(result, checklist)
             })
+            if (result._resource.flags) {
+                $coverage.append('*')
+            }
             $coverageColumn.appendChild($coverage)
         }
         $result.appendChild($coverageColumn)
@@ -851,6 +854,21 @@
             document.getElementById('observation_ratio_text').setAttribute('style', 'display: none;')
         } else {
             document.getElementById('observation_ratio_text').removeAttribute('style')
+        }
+
+        const $flags = document.getElementById('species_flags')
+        empty($flags)
+        if (result._resource.flags) {
+            for (const flag of result._resource.flags) {
+                const $p = document.createElement('p')
+                $p.classList.add('alert')
+                $p.textContent = flagLabels[flag]
+                const $span = document.createElement('span')
+                $span.textContent = `(${flag})`
+                $span.setAttribute('style', 'color: grey;')
+                $p.append('. ', $span)
+                $flags.append($p)
+            }
         }
 
         const $matching = document.getElementById('matching_taxa')
