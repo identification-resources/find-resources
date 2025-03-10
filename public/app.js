@@ -795,7 +795,7 @@
                 event.stopPropagation()
                 openCoverageDialog(result, checklist)
             })
-            if (result._resource.flags) {
+            if (result._resource && result._resource.flags) {
                 $coverage.append('*')
             }
             $coverageColumn.appendChild($coverage)
