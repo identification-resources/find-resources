@@ -243,6 +243,10 @@
     }
 
     async function getLocationSuggestions (query, signal) {
+        if (query === '') {
+            return []
+        }
+
         if (query.match(/^-?[0-9.]+,\s*-?[0-9.]+$/)) {
             const [lat, long] = query.split(/,\s*/)
 
