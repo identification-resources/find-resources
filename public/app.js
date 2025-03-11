@@ -38,11 +38,15 @@
             controller = new AbortController()
             const results = await getSuggestions($searchInput.value, controller.signal).catch(error => {
                 if (error instanceof DOMException && error.name === 'AbortError') {
-                    return []
+                    return null
                 } else {
                     throw error
                 }
             })
+
+            if (results == null) {
+                return
+            }
 
             empty($searchResults)
             for (const result of results) {
