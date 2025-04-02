@@ -402,7 +402,10 @@
     }
 
     function getTaxonParents (taxon) {
-        return RANKS.map(rank => taxon[rank]).filter(Boolean)
+        return RANKS.filter(rank => taxon[rank]).map(rank => ({
+            name: taxon[rank],
+            gbif: taxon[rank + 'Key']
+        }))
     }
 
     async function getPlaces (query) {
@@ -542,11 +545,32 @@
         return resources
     }
 
+    function isTaxonParent (parentName, ancestry) {
+        const taxon = DATA.taxa[parentName]
+        const children = taxon.children_gbif ? taxon.children_gbif.split('; ') : undefined
+
+        for (let i = 0; i < ancestry.length; i++) {
+            const parentTaxon = ancestry[ancestry.length - i - 1]
+            if (parentTaxon.gbif) {
+                const parentGbif = parentTaxon.gbif.toString()
+                if (taxon.gbif === parentGbif) {
+                    return i
+                } else if (taxon.children_gbif && children.includes(parentGbif.toString())) {
+                    return i + 0.5
+                }
+            } else if (parentTaxon.name === taxon.name) {
+                return i
+            }
+        }
+
+        return -1
+    }
+
     async function getResults (taxon, params) {
         // Get parent taxa
         const parentTaxa = getTaxonParents(taxon)
         if (taxon.key === 0) {
-            parentTaxa.push('Biota')
+            parentTaxa.push({ name: 'Biota' })
         }
 
         // Get place info
@@ -624,18 +648,18 @@
             }
 
             // Determine relevance of work
-            let closestTaxon = 0
-            for (const taxon of record.taxon.split('; ')) {
-                const index = parentTaxa.indexOf(taxon) + 1
-                if (index && closestTaxon < index) {
-                    closestTaxon = index
+            let closestTaxon = Infinity
+            for (const taxonName of record.taxon.split('; ')) {
+                const distance = isTaxonParent(taxonName, parentTaxa)
+                if (distance > 0 && distance < closestTaxon) {
+                    closestTaxon = distance
                 }
             }
-            if (closestTaxon === 0) {
+            if (isFinite(closestTaxon)) {
+                record.parent_proximity = (parentTaxa.length - closestTaxon) / parentTaxa.length
+            } else {
                 // Taxa not applicable
                 continue
-            } else {
-                record.parent_proximity = closestTaxon / parentTaxa.length
             }
 
             if (!record.region.split('; ').some(place => places.includes(place))) {
@@ -960,10 +984,18 @@
     })
 
     async function loadData () {
-        DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id')
-        DATA.resources = await loadKeys(),
-        DATA.gbif = await fetchJson('/assets/data/resources/gbif.index.json')
-        DATA.places = await fetchJson('./data/places.json')
+        const [catalog, resources, gbif, places, taxa] = await Promise.all([
+            indexCsv('/assets/data/catalog.csv', 'id'),
+            loadKeys(),
+            fetchJson('/assets/data/resources/gbif.index.json'),
+            fetchJson('./data/places.json'),
+            indexCsv('/assets/data/taxa.csv', 'name')
+        ])
+        DATA.catalog = catalog
+        DATA.resources = resources
+        DATA.gbif = gbif
+        DATA.places = places
+        DATA.taxa = taxa
     }
 
     const params = new URLSearchParams(window.location.search)
