@@ -651,7 +651,7 @@
             let closestTaxon = Infinity
             for (const taxonName of record.taxon.split('; ')) {
                 const distance = isTaxonParent(taxonName, parentTaxa)
-                if (distance > 0 && distance < closestTaxon) {
+                if (distance !== -1 && distance < closestTaxon) {
                     closestTaxon = distance
                 }
             }
@@ -674,12 +674,11 @@
     }
 
     function scoreResult (record, taxon, params) {
-        let score
+        let score = 1
 
         if ('parent_proximity' in record) {
-            score = record.parent_proximity
-        } else {
-            score = 1
+            const offset = 0.5
+            score *= offset + (record.parent_proximity * (1 - offset))
         }
 
         if ('species_ratio' in record) {
