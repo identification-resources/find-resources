@@ -439,7 +439,12 @@
     }
 
     async function getSpeciesByDataset (taxon, dataset) {
-        const { results: [{ key: datasetTaxon }] } = await fetchJson(`https://api.gbif.org/v1/species/${taxon}/related?datasetKey=${dataset}`)
+        const { results } = await fetchJson(`https://api.gbif.org/v1/species/${taxon}/related?datasetKey=${dataset}`)
+        if (!results.length) {
+            return []
+        }
+
+        const datasetTaxon = results[0].key
         const baseUrl = `https://api.gbif.org/v1/species/search?highertaxonKey=${datasetTaxon}&datasetKey=${dataset}&rank=SPECIES&status=ACCEPTED`
 
         const species = []
