@@ -679,20 +679,20 @@
     }
 
     function scoreResult (record, taxon, params) {
-        let score = 1
+        let score = {
+            relevance: 1,
+            usability: 1,
+            recency: 1,
+        }
 
         if ('parent_proximity' in record) {
             const offset = 0.5
-            score *= offset + (record.parent_proximity * (1 - offset))
+            score.relevance *= offset + (record.parent_proximity * (1 - offset))
         }
 
         if ('species_ratio' in record) {
             const offset = 0.5
-            score *= offset + (record.species_ratio * (1 - offset))
-        }
-
-        if (!record.fulltext_url && !record.archive_url) {
-            score *= 0.9
+            score.relevance *= offset + (record.species_ratio * (1 - offset))
         }
 
         if (record.target_taxa) {
@@ -703,24 +703,28 @@
                 every = every && match
                 some = some || match
             }
-            score *= every ? 1 : some ? 0.9 : 0;
+            score.relevance *= every ? 1 : some ? 0.9 : 0;
         }
 
         if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
-            score *= 0.9
+            score.usability *= 0.9
         }
 
         if (record.key_type) {
             const types = record.key_type.split('; ')
             if (types.includes('key') || types.includes('matrix')) {
-                // score *= 1
+                // score.usability *= 1
             } else if (types.includes('reference')) {
-                score *= 0.9
+                score.usability *= 0.9
             } else if (types.includes('gallery')) {
-                score *= 0.8
+                score.usability *= 0.8
             } else {
-                score *= 0.7
+                score.usability *= 0.7
             }
+        }
+
+        if (!record.fulltext_url && !record.archive_url) {
+            score.usability *= 0.9
         }
 
         if (record.date) {
@@ -732,11 +736,14 @@
                 const firstYear = Math.min(year, 1850)
 
                 const offset = 0.5
-                score *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
+                score.recency *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
             }
         }
 
-        return score
+        return {
+            total: score.relevance * score.usability * score.recency,
+            parts: score
+        }
     }
 
     function makeResult (result, checklist) {
@@ -824,18 +831,60 @@
 
         // COLUMN 3
         const $coverageColumn = document.createElement('div')
-        if (!isNaN(result.species_ratio)) {
-            const $coverage = document.createElement('div')
-            $coverage.appendChild(makePieChart(result.species_ratio))
-            $coverage.addEventListener('click', event => {
-                event.stopPropagation()
-                openCoverageDialog(result, checklist)
-            })
-            if (result._resource && result._resource.flags) {
-                $coverage.append('*')
+        const $coverage = document.createElement('div')
+        {
+            const parts = [
+                { letter: 'r', key: 'relevance', color: result._resource ? '#000000' : '#989d89' },
+                { letter: 'u', key: 'usability', color: '#989d89' },
+                { letter: 't', key: 'recency', color: '#989d89' },
+            ]
+            const totalWidth = 60
+            const textWidth = 16
+            const partHeight = 14
+
+            const $svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            $svg.setAttribute('width', totalWidth)
+            $svg.setAttribute('height', partHeight * parts.length)
+            $svg.setAttribute('viewbox', `0 0 ${totalWidth} ${partHeight * parts.length}`)
+
+            for (let i = 0; i < parts.length; i++) {
+                const { letter, key, color } = parts[i]
+                const score = result._scores[key]
+                const $g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+                $g.setAttribute('transform', `translate(0 ${i * partHeight})`)
+                const $text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+                $text.setAttribute('dx', textWidth / 2)
+                $text.setAttribute('dy', '25%')
+                $text.setAttribute('font-size', '12')
+                $text.setAttribute('font-weight', 'bold')
+                $text.setAttribute('text-anchor', 'middle')
+                $text.textContent = letter
+                const $line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+                $line.setAttribute('x1', textWidth)
+                $line.setAttribute('x2', textWidth + score * (totalWidth - textWidth))
+                $line.setAttribute('y1', partHeight / 2)
+                $line.setAttribute('y2', partHeight / 2)
+                $line.setAttribute('stroke', color)
+                $line.setAttribute('stroke-width', 3)
+                const $baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+                $baseline.setAttribute('x1', textWidth + score * (totalWidth - textWidth))
+                $baseline.setAttribute('x2', totalWidth)
+                $baseline.setAttribute('y1', partHeight / 2)
+                $baseline.setAttribute('y2', partHeight / 2)
+                $baseline.setAttribute('stroke', '#989d89')
+                $g.append($text, $line, $baseline)
+                $svg.append($g)
             }
-            $coverageColumn.appendChild($coverage)
+            $coverage.append($svg)
         }
+        $coverage.addEventListener('click', event => {
+            event.stopPropagation()
+            openCoverageDialog(result, checklist)
+        })
+        if (!isNaN(result.species_ratio) && result._resource && result._resource.flags) {
+            $coverage.append('*')
+        }
+        $coverageColumn.appendChild($coverage)
         $result.appendChild($coverageColumn)
 
         return $result
@@ -857,82 +906,93 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        const resourceTaxonNames = {}
+        for (const part in result._scores) {
+            const $td = document.getElementById(`score_${part}`)
+            empty($td)
+            $td.append(makePieChart(result._scores[part]))
+        }
 
-        if (!result._resource.id.endsWith(':0')) {
-            const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
-            for (const id in resourceTaxa) {
-                const gbif = resourceTaxa[id].gbifAcceptedTaxonID
-                if (!resourceTaxonNames[gbif] || resourceTaxa[id].taxonomicStatus === 'accepted') {
-                    resourceTaxonNames[gbif] = resourceTaxa[id].scientificName
+        if (result._resource) {
+            const resourceTaxonNames = {}
+
+            if (!result._resource.id.endsWith(':0')) {
+                const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
+                for (const id in resourceTaxa) {
+                    const gbif = resourceTaxa[id].gbifAcceptedTaxonID
+                    if (!resourceTaxonNames[gbif] || resourceTaxa[id].taxonomicStatus === 'accepted') {
+                        resourceTaxonNames[gbif] = resourceTaxa[id].scientificName
+                    }
                 }
             }
-        }
 
-        const matching = []
-        const missing = []
+            const matching = []
+            const missing = []
 
-        for (const taxon of checklist) {
-            const matched = DATA.gbif[taxon.name] && DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id))
-            if (matched) {
-                matching.push(taxon)
+            for (const taxon of checklist) {
+                const matched = DATA.gbif[taxon.name] && DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id))
+                if (matched) {
+                    matching.push(taxon)
+                } else {
+                    missing.push(taxon)
+                }
+            }
+
+            document.getElementById('species_count').textContent = (result.species_ratio * checklist.length).toFixed(0)
+            document.getElementById('species_total').textContent = checklist.length
+            document.getElementById('species_ratio').replaceChildren(makePieChart(result.species_ratio))
+            document.getElementById('observation_ratio').replaceChildren(makePieChart(result.observation_ratio))
+
+            if (isNaN(result.observation_ratio)) {
+                document.getElementById('observation_ratio_text').setAttribute('style', 'display: none;')
             } else {
-                missing.push(taxon)
+                document.getElementById('observation_ratio_text').removeAttribute('style')
             }
-        }
 
-        document.getElementById('species_count').textContent = (result.species_ratio * checklist.length).toFixed(0)
-        document.getElementById('species_total').textContent = checklist.length
-        document.getElementById('species_ratio').replaceChildren(makePieChart(result.species_ratio))
-        document.getElementById('observation_ratio').replaceChildren(makePieChart(result.observation_ratio))
+            const $flags = document.getElementById('species_flags')
+            empty($flags)
+            if (result._resource.flags) {
+                for (const flag of result._resource.flags) {
+                    const $p = document.createElement('p')
+                    $p.classList.add('alert')
+                    $p.textContent = flagLabels[flag]
+                    const $span = document.createElement('span')
+                    $span.textContent = `(${flag})`
+                    $span.setAttribute('style', 'color: grey;')
+                    $p.append('. ', $span)
+                    $flags.append($p)
+                }
+            }
 
-        if (isNaN(result.observation_ratio)) {
-            document.getElementById('observation_ratio_text').setAttribute('style', 'display: none;')
+            const $matching = document.getElementById('matching_taxa')
+            empty($matching)
+
+            for (const taxon of matching) {
+                const $taxon = document.createElement('li')
+                const $taxonLink = document.createElement('a')
+                $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
+                $taxonLink.textContent = taxon.displayName || resourceTaxonNames[taxon.name] || taxon.name
+                $taxon.appendChild($taxonLink)
+                $matching.appendChild($taxon)
+            }
+
+            const $missing = document.getElementById('missing_taxa')
+            empty($missing)
+
+            for (const taxon of missing) {
+                const $taxon = document.createElement('li')
+                const $taxonLink = document.createElement('a')
+                $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
+                $taxonLink.textContent = taxon.displayName || taxon.name
+                $taxon.appendChild($taxonLink)
+                $missing.appendChild($taxon)
+            }
+
+            document.getElementById('dialog_taxonomic_coverage').style.display = 'block'
         } else {
-            document.getElementById('observation_ratio_text').removeAttribute('style')
+            document.getElementById('dialog_taxonomic_coverage').style.display = 'none'
         }
 
-        const $flags = document.getElementById('species_flags')
-        empty($flags)
-        if (result._resource.flags) {
-            for (const flag of result._resource.flags) {
-                const $p = document.createElement('p')
-                $p.classList.add('alert')
-                $p.textContent = flagLabels[flag]
-                const $span = document.createElement('span')
-                $span.textContent = `(${flag})`
-                $span.setAttribute('style', 'color: grey;')
-                $p.append('. ', $span)
-                $flags.append($p)
-            }
-        }
-
-        const $matching = document.getElementById('matching_taxa')
-        empty($matching)
-
-        for (const taxon of matching) {
-            const $taxon = document.createElement('li')
-            const $taxonLink = document.createElement('a')
-            $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
-            $taxonLink.textContent = taxon.displayName || resourceTaxonNames[taxon.name] || taxon.name
-            $taxon.appendChild($taxonLink)
-            $matching.appendChild($taxon)
-        }
-
-        const $missing = document.getElementById('missing_taxa')
-        empty($missing)
-
-        for (const taxon of missing) {
-            const $taxon = document.createElement('li')
-            const $taxonLink = document.createElement('a')
-            $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
-            $taxonLink.textContent = taxon.displayName || taxon.name
-            $taxon.appendChild($taxonLink)
-            $missing.appendChild($taxon)
-        }
-
-        const $dialog = $missing.closest('dialog')
-        $dialog.showModal()
+        document.getElementById('dialog_result_score').showModal()
     }
 
     function openVersionsDialog (result, checklist) {
@@ -1033,7 +1093,9 @@
 
         // Sort
         for (const result of results) {
-            result._score = scoreResult(result, taxon, params)
+            const { total, parts } = scoreResult(result, taxon, params)
+            result._score = total
+            result._scores = parts
         }
         results.sort((a, b) => b._score - a._score)
 

@@ -90,32 +90,54 @@
             </div>
         </main>
 
-        <dialog>
-            <h3>Taxonomic coverage</h3>
+        <dialog id="dialog_result_score">
+            <h3>Search result score</h3>
 
-            <p>
-                This resource includes <span id="species_count"></span> of the expected <span id="species_total"></span> species,
-                meaning <span id="species_ratio"></span>.
-            </p>
+            <table>
+                <tr>
+                    <th>Relevance</th>
+                    <td>Taxonomic and geographic relevance</td>
+                    <td id="score_relevance"></td>
+                </tr>
+                <tr>
+                    <th>Usability</th>
+                    <td>Accessibility and how well it can distinguish taxa</td>
+                    <td id="score_usability"></td>
+                </tr>
+                <tr>
+                    <th>Timeliness</th>
+                    <td>Recency of publication</td>
+                    <td id="score_recency"></td>
+                </tr>
+            </table>
 
-            <p id="observation_ratio_text">
-                Scaled by observations, this covers <span id="observation_ratio"></span> of observations.
-            </p>
+            <section id="dialog_taxonomic_coverage">
+                <h4>Taxonomic coverage</h4>
 
-            <div id="species_flags">
-            </div>
+                <p>
+                    This resource includes <span id="species_count"></span> of the expected <span id="species_total"></span> species,
+                    meaning <span id="species_ratio"></span>.
+                </p>
 
-            <details>
-                <summary>Matching taxa</summary>
-                <ol id="matching_taxa">
-                </ol>
-            </details>
+                <p id="observation_ratio_text">
+                    Scaled by observations, this covers <span id="observation_ratio"></span> of observations.
+                </p>
 
-            <details>
-                <summary>Missing taxa</summary>
-                <ol id="missing_taxa">
-                </ol>
-            </details>
+                <div id="species_flags">
+                </div>
+
+                <details>
+                    <summary>Matching taxa</summary>
+                    <ol id="matching_taxa">
+                    </ol>
+                </details>
+
+                <details>
+                    <summary>Missing taxa</summary>
+                    <ol id="missing_taxa">
+                    </ol>
+                </details>
+            </section>
 
             <br>
 
