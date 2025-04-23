@@ -433,7 +433,7 @@
                 species.push({
                     id: result.name,
                     count: result.count,
-                    href: `https://gbif.org/species/${taxon.id}`
+                    href: `https://gbif.org/species/${result.name}`
                 })
             }
             if (response.length < pageSize) {
@@ -990,7 +990,7 @@
             if (!result._resource.id.endsWith(':0')) {
                 const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
                 for (const taxon of Object.values(getUniqueTaxaInChecklist(resourceTaxa))) {
-                    resourceTaxonNames[taxon.gbifAcceptedTaxonID] = parseResourceTaxonName(taxon)
+                    resourceTaxonNames[taxon.gbifAcceptedTaxonID] = taxon
                 }
             }
 
