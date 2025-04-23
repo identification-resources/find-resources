@@ -429,7 +429,13 @@
         while (true) {
             const url = `${baseUrl}&facetLimit=${pageSize}&facetOffset=${offset}`
             const response = await fetchJson(url).then(response => response.facets[0].counts)
-            species.push(...response)
+            for (const result of response) {
+                species.push({
+                    id: result.name,
+                    count: result.count,
+                    href: `https://gbif.org/species/${taxon.id}`
+                })
+            }
             if (response.length < pageSize) {
                 return species
             } else {
@@ -455,9 +461,11 @@
             const response = await fetchJson(url)
 
             species.push(...response.results.map(result => ({
-                name: result.nubKey,
-                displayName: result.scientificName,
-                count: 0
+                id: result.nubKey,
+                count: 0,
+                href: `https://gbif.org/species/${result.key}`,
+                name: result.canonicalName,
+                authorship: result.authorship
             })))
 
             if (response.endOfRecords) {
@@ -490,6 +498,32 @@
         }
     }
 
+    function getUniqueTaxaInChecklist (taxa) {
+        const species = {}
+
+        for (const id in taxa) {
+            const gbif = taxa[id].gbifAcceptedTaxonID
+            if (!species[gbif] || taxa[id].taxonomicStatus === 'accepted') {
+                species[gbif] = taxa[id]
+            }
+        }
+
+        return species
+    }
+
+    async function getSpeciesByChecklist (taxon, resource) {
+        const subtaxa = await getGbifSubtaxa(taxon)
+
+        return Object.values(getUniqueTaxaInChecklist(resource.taxa))
+            .filter(taxon => subtaxa.has(parseInt(taxon.gbifAcceptedTaxonID)))
+            .map(taxon => ({
+                id: parseInt(taxon.gbifAcceptedTaxonID),
+                count: 0,
+                href: `/catalog/resource/?id=${taxon.collectionCode}#${taxon.scientificNameID}`,
+                ...parseResourceTaxonName(taxon)
+            }))
+    }
+
     async function findGbifMatches (checklist) {
         const speciesCount = checklist.length
         const countsTotal = checklist.reduce((sum, species) => sum + species.count, 0)
@@ -500,7 +534,7 @@
                 resources[resourceId] = {
                     speciesRatio: 0,
                     observationRatio: 0,
-                    missing: new Set(checklist.map(species => species.name))
+                    missing: new Set(checklist.map(species => species.id))
                 }
             }
             if (resources[resourceId].missing.has(species)) {
@@ -538,7 +572,7 @@
             countSpeciesForResource(parentResourceId, species, count)
         }
 
-        for (const { name: species, count } of checklist) {
+        for (const { id: species, count } of checklist) {
             if (species in DATA.gbif) {
                 for (const id of DATA.gbif[species]) {
                     const resourceId = id.match(/^B\d+:\d+/)[0]
@@ -589,15 +623,7 @@
         if (params.get('checklist') === 'catalog') {
             // Use resource in catalog as basis
             const resource = await loadKey(params.get('checklist-catalog'))
-            const subtaxa = await getGbifSubtaxa(taxon.key)
-            checklist = Object.values(resource.taxa)
-                .map(taxon => parseInt(taxon.data[28]))
-                .filter((taxon, i, a) => a.indexOf(taxon) === i && subtaxa.has(taxon))
-                .map(taxon => ({
-                    name: taxon,
-                    displayName: subtaxa.get(taxon).scientificName,
-                    count: 0
-                }))
+            checklist = await getSpeciesByChecklist(taxon.key, resource)
         } else if (params.get('checklist') === 'search' && country) {
             // Use GBIF occurrence data
             const countryCode = await getCountryCode(country.id)
@@ -961,11 +987,8 @@
 
             if (!result._resource.id.endsWith(':0')) {
                 const resourceTaxa = await indexCsv(`/assets/data/resources/dwc/${result._resource.id.split(':').join('-')}.csv`, 'scientificNameID')
-                for (const id in resourceTaxa) {
-                    const gbif = resourceTaxa[id].gbifAcceptedTaxonID
-                    if (!resourceTaxonNames[gbif] || resourceTaxa[id].taxonomicStatus === 'accepted') {
-                        resourceTaxonNames[gbif] = resourceTaxa[id].scientificName
-                    }
+                for (const taxon of Object.values(getUniqueTaxaInChecklist(resourceTaxa))) {
+                    resourceTaxonNames[taxon.gbifAcceptedTaxonID] = parseResourceTaxonName(taxon)
                 }
             }
 
@@ -973,7 +996,7 @@
             const missing = []
 
             for (const taxon of checklist) {
-                const matched = DATA.gbif[taxon.name] && DATA.gbif[taxon.name].some(id => id.startsWith(result._resource.id))
+                const matched = DATA.gbif[taxon.id] && DATA.gbif[taxon.id].some(id => id.startsWith(result._resource.id))
                 if (matched) {
                     matching.push(taxon)
                 } else {
@@ -1013,8 +1036,17 @@
             for (const taxon of matching) {
                 const $taxon = document.createElement('li')
                 const $taxonLink = document.createElement('a')
-                $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
-                $taxonLink.textContent = taxon.displayName || resourceTaxonNames[taxon.name] || taxon.name
+                $taxonLink.setAttribute('href', taxon.href)
+
+                if (taxon.name) {
+                    $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                } else if (resourceTaxonNames[taxon.id]) {
+                    const { name, authorship } = parseResourceTaxonName(resourceTaxonNames[taxon.id])
+                    $taxonLink.append(formatTaxonName(name, authorship, 'species'))
+                } else {
+                    $taxonLink.textContent = taxon.id
+                }
+
                 $taxon.appendChild($taxonLink)
                 $matching.appendChild($taxon)
             }
@@ -1025,8 +1057,14 @@
             for (const taxon of missing) {
                 const $taxon = document.createElement('li')
                 const $taxonLink = document.createElement('a')
-                $taxonLink.setAttribute('href', `https://gbif.org/species/${taxon.name}`)
-                $taxonLink.textContent = taxon.displayName || taxon.name
+                $taxonLink.setAttribute('href', taxon.href)
+
+                if (taxon.name) {
+                    $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                } else {
+                    $taxonLink.textContent = taxon.id
+                }
+
                 $taxon.appendChild($taxonLink)
                 $missing.appendChild($taxon)
             }
@@ -1145,7 +1183,6 @@
             scoreResult(result, taxon, params)
             result._element = makeResult(result, checklist)
         }
-        console.log(results)
         DATA.results = results.filter(result => result._score > 0)
 
         render('_score')
