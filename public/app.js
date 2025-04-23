@@ -1040,7 +1040,8 @@
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
     document.querySelector('#input_wrapper form').addEventListener('formdata', function (event) {
-        for (const [key, value] of event.formData) {
+        const fields = [...event.formData]
+        for (const [key, value] of fields) {
             if (value === '') {
                 event.formData.delete(key)
             }
