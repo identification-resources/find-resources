@@ -591,7 +591,7 @@
             const resource = await loadKey(params.get('checklist-catalog'))
             const subtaxa = await getGbifSubtaxa(taxon.key)
             checklist = Object.values(resource.taxa)
-                .map(taxon => parseInt(taxon.data[27]))
+                .map(taxon => parseInt(taxon.data[28]))
                 .filter((taxon, i, a) => a.indexOf(taxon) === i && subtaxa.has(taxon))
                 .map(taxon => ({
                     name: taxon,
