@@ -867,24 +867,26 @@
         const $coverageColumn = document.createElement('div')
         const $coverage = document.createElement('div')
         {
-            const parts = [
-                { letter: 'r', key: '_score_relevance', color: result._resource ? '#000000' : '#989d89' },
-                { letter: 'e', key: '_score_usability', color: '#989d89' },
-                { letter: 't', key: '_score_recency', color: '#989d89' },
-            ]
             const totalWidth = 60
             const textWidth = 16
             const partHeight = 14
 
             const $svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
             $svg.setAttribute('width', totalWidth)
-            $svg.setAttribute('height', partHeight * parts.length)
-            $svg.setAttribute('viewbox', `0 0 ${totalWidth} ${partHeight * parts.length}`)
+            $svg.setAttribute('height', partHeight * SCORE_PARTS.length)
+            $svg.setAttribute('viewbox', `0 0 ${totalWidth} ${partHeight * SCORE_PARTS.length}`)
 
-            for (let i = 0; i < parts.length; i++) {
-                const { letter, key, color } = parts[i]
+            for (let i = 0; i < SCORE_PARTS.length; i++) {
+                const { letter, label, key } = SCORE_PARTS[i]
+                const score = result[key]
                 const $g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
                 $g.setAttribute('transform', `translate(0 ${i * partHeight})`)
+                const $rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+                $rect.setAttribute('width', totalWidth)
+                $rect.setAttribute('height', partHeight)
+                $rect.setAttribute('fill', '#ffffff')
+                const $title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
+                $title.textContent = `${label}: ${(score * 100).toFixed()}%`
                 const $text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
                 $text.setAttribute('dx', textWidth / 2)
                 $text.setAttribute('dy', '25%')
@@ -894,18 +896,18 @@
                 $text.textContent = letter
                 const $line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
                 $line.setAttribute('x1', textWidth)
-                $line.setAttribute('x2', textWidth + result[key] * (totalWidth - textWidth))
+                $line.setAttribute('x2', textWidth + score * (totalWidth - textWidth))
                 $line.setAttribute('y1', partHeight / 2)
                 $line.setAttribute('y2', partHeight / 2)
-                $line.setAttribute('stroke', color)
+                $line.setAttribute('stroke', key === '_score_relevance' && result._resource ? '#000000' : '#989d89')
                 $line.setAttribute('stroke-width', 3)
                 const $baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-                $baseline.setAttribute('x1', textWidth + result[key] * (totalWidth - textWidth))
+                $baseline.setAttribute('x1', textWidth)
                 $baseline.setAttribute('x2', totalWidth)
                 $baseline.setAttribute('y1', partHeight / 2)
                 $baseline.setAttribute('y2', partHeight / 2)
                 $baseline.setAttribute('stroke', '#989d89')
-                $g.append($text, $line, $baseline)
+                $g.append($rect, $title, $text, $baseline, $line)
                 $svg.append($g)
             }
             $coverage.append($svg)
@@ -976,10 +978,10 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        for (const part of ['relevance', 'usability', 'recency']) {
-            const $td = document.getElementById(`score_${part}`)
+        for (const { key: part } of SCORE_PARTS) {
+            const $td = document.getElementById(part.slice(1))
             empty($td)
-            $td.append(makePieChart(result[`_score_${part}`]))
+            $td.append(makePieChart(result[part]))
         }
 
         if (result._resource) {
@@ -1111,6 +1113,23 @@
         'form'
     ]
     const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
+    const SCORE_PARTS = [
+        {
+            letter: 'r',
+            label: 'Relevance',
+            key: '_score_relevance'
+        },
+        {
+            letter: 'e',
+            label: 'Ease of use',
+            key: '_score_usability'
+        },
+        {
+            letter: 't',
+            label: 'Timeliness',
+            key: '_score_recency'
+        },
+    ]
 
     function compareRanks (a, b) {
         return RANKS.indexOf(a) - RANKS.indexOf(b)
