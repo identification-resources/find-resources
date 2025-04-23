@@ -679,20 +679,18 @@
     }
 
     function scoreResult (record, taxon, params) {
-        let score = {
-            relevance: 1,
-            usability: 1,
-            recency: 1,
-        }
+        record._score_relevance = 1
+        record._score_usability = 1
+        record._score_recency = 1
 
         if ('parent_proximity' in record) {
             const offset = 0.5
-            score.relevance *= offset + (record.parent_proximity * (1 - offset))
+            record._score_relevance *= offset + (record.parent_proximity * (1 - offset))
         }
 
         if ('species_ratio' in record) {
             const offset = 0.5
-            score.relevance *= offset + (record.species_ratio * (1 - offset))
+            record._score_relevance *= offset + (record.species_ratio * (1 - offset))
         }
 
         if (record.target_taxa) {
@@ -703,28 +701,28 @@
                 every = every && match
                 some = some || match
             }
-            score.relevance *= every ? 1 : some ? 0.9 : 0;
+            record._score_relevance *= every ? 1 : some ? 0.9 : 0;
         }
 
         if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
-            score.usability *= 0.9
+            record._score_usability *= 0.9
         }
 
         if (record.key_type) {
             const types = record.key_type.split('; ')
             if (types.includes('key') || types.includes('matrix')) {
-                // score.usability *= 1
+                // record._score_usability *= 1
             } else if (types.includes('reference')) {
-                score.usability *= 0.9
+                record._score_usability *= 0.9
             } else if (types.includes('gallery')) {
-                score.usability *= 0.8
+                record._score_usability *= 0.8
             } else {
-                score.usability *= 0.7
+                record._score_usability *= 0.7
             }
         }
 
         if (!record.fulltext_url && !record.archive_url) {
-            score.usability *= 0.9
+            record._score_usability *= 0.9
         }
 
         if (record.date) {
@@ -736,14 +734,11 @@
                 const firstYear = Math.min(year, 1850)
 
                 const offset = 0.5
-                score.recency *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
+                record._score_recency *= offset + (1 - offset) * (year - firstYear) / (currentYear - firstYear)
             }
         }
 
-        return {
-            total: score.relevance * score.usability * score.recency,
-            parts: score
-        }
+        record._score = record._score_relevance * record._score_usability * record._score_recency
     }
 
     function makeResult (result, checklist) {
@@ -834,9 +829,9 @@
         const $coverage = document.createElement('div')
         {
             const parts = [
-                { letter: 'r', key: 'relevance', color: result._resource ? '#000000' : '#989d89' },
-                { letter: 'u', key: 'usability', color: '#989d89' },
-                { letter: 't', key: 'recency', color: '#989d89' },
+                { letter: 'r', key: '_score_relevance', color: result._resource ? '#000000' : '#989d89' },
+                { letter: 'u', key: '_score_usability', color: '#989d89' },
+                { letter: 't', key: '_score_recency', color: '#989d89' },
             ]
             const totalWidth = 60
             const textWidth = 16
@@ -849,7 +844,6 @@
 
             for (let i = 0; i < parts.length; i++) {
                 const { letter, key, color } = parts[i]
-                const score = result._scores[key]
                 const $g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
                 $g.setAttribute('transform', `translate(0 ${i * partHeight})`)
                 const $text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
@@ -861,13 +855,13 @@
                 $text.textContent = letter
                 const $line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
                 $line.setAttribute('x1', textWidth)
-                $line.setAttribute('x2', textWidth + score * (totalWidth - textWidth))
+                $line.setAttribute('x2', textWidth + result[key] * (totalWidth - textWidth))
                 $line.setAttribute('y1', partHeight / 2)
                 $line.setAttribute('y2', partHeight / 2)
                 $line.setAttribute('stroke', color)
                 $line.setAttribute('stroke-width', 3)
                 const $baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-                $baseline.setAttribute('x1', textWidth + score * (totalWidth - textWidth))
+                $baseline.setAttribute('x1', textWidth + result[key] * (totalWidth - textWidth))
                 $baseline.setAttribute('x2', totalWidth)
                 $baseline.setAttribute('y1', partHeight / 2)
                 $baseline.setAttribute('y2', partHeight / 2)
@@ -890,6 +884,43 @@
         return $result
     }
 
+    function render (sortKey) {
+        const results = DATA.results.slice()
+        results.sort((a, b) => (b[sortKey] - a[sortKey]) || (b._score - a._score))
+
+        // Group
+        const groupedResults = {}
+        for (const result of results) {
+            let versionId = result.version_of || result.id
+            if (result._resource) {
+                if (result._resource.catalog && result._resource.catalog.version_of) {
+                    versionId = result._resource.catalog.version_of
+                } else {
+                    const resourceId = result._resource.id.split(':').pop()
+                    versionId += ':' + resourceId
+                }
+            } else {
+                versionId += ':1'
+            }
+
+            if (groupedResults[versionId]) {
+                groupedResults[versionId]._versions.push(result)
+            } else {
+                groupedResults[versionId] = {
+                    ...result,
+                    _versions: [result]
+                }
+            }
+        }
+
+        // Render
+        const $results = document.getElementById('results')
+        empty($results)
+        for (const result of Object.values(groupedResults)) {
+            $results.appendChild(result._element)
+        }
+    }
+
     function makePieChart (value) {
         const $container = new DocumentFragment()
         const $chart = document.createElement('span')
@@ -906,10 +937,10 @@
     }
 
     async function openCoverageDialog (result, checklist) {
-        for (const part in result._scores) {
+        for (const part of ['relevance', 'usability', 'recency']) {
             const $td = document.getElementById(`score_${part}`)
             empty($td)
-            $td.append(makePieChart(result._scores[part]))
+            $td.append(makePieChart(result[`_score_${part}`]))
         }
 
         if (result._resource) {
@@ -1000,7 +1031,7 @@
         empty($versions)
 
         for (const version of result._versions) {
-            $versions.appendChild(makeResult(version, checklist))
+            $versions.appendChild(version._element)
         }
 
         const $dialog = $versions.closest('dialog')
@@ -1048,6 +1079,10 @@
         }
     })
 
+    document.getElementById('results_sort').addEventListener('change', function (event) {
+        render(event.target.value)
+    })
+
     async function loadData () {
         const [catalog, resources, gbif, places, taxa] = await Promise.all([
             indexCsv('/assets/data/catalog.csv', 'id'),
@@ -1092,47 +1127,14 @@
 
         const [results, checklist] = await getResults(taxon, params)
 
-        // Sort
+        // Sort and render
         for (const result of results) {
-            const { total, parts } = scoreResult(result, taxon, params)
-            result._score = total
-            result._scores = parts
+            scoreResult(result, taxon, params)
+            result._element = makeResult(result, checklist)
         }
-        results.sort((a, b) => b._score - a._score)
+        DATA.results = results.filter(result => result._score > 0)
 
-        // Group
-        const groupedResults = {}
-        for (const result of results) {
-            let versionId = result.version_of || result.id
-            if (result._resource) {
-                if (result._resource.catalog && result._resource.catalog.version_of) {
-                    versionId = result._resource.catalog.version_of
-                } else {
-                    const resourceId = result._resource.id.split(':').pop()
-                    versionId += ':' + resourceId
-                }
-            } else {
-                versionId += ':1'
-            }
-
-            if (groupedResults[versionId]) {
-                groupedResults[versionId]._versions.push(result)
-            } else {
-                groupedResults[versionId] = {
-                    ...result,
-                    _versions: [result]
-                }
-            }
-        }
-
-        // Render
-        const $results = document.getElementById('results')
-        empty($results)
-        for (const result of Object.values(groupedResults)) {
-            if (result._score > 0) {
-                $results.appendChild(makeResult(result, checklist))
-            }
-        }
+        render('_score')
     } else {
         await loadData()
     }

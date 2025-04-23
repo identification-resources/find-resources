@@ -84,6 +84,16 @@
             </div>
 
             <div id="results_wrapper">
+                <p>
+                    <label for="results_sort">Sort by:</label>
+                    <select id="results_sort">
+                        <option value="_score">All</option>
+                        <option value="_score_relevance">Relevance</option>
+                        <option value="_score_usability">Usability</option>
+                        <option value="_score_recency">Timeliness</option>
+                    </select>
+                </p>
+
                 <div id="results">
                     <div id="results_message">No results</div>
                 </div>
