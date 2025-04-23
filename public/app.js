@@ -696,7 +696,7 @@
         }
 
         if (record.target_taxa) {
-            let every = false
+            let every = true
             let some = false
             for (const target of record.target_taxa.split('; ')) {
                 const match = compareRanks(taxon.rank.toLowerCase(), target) < 0
