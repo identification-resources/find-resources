@@ -732,7 +732,7 @@
             record._score_relevance *= offset + (record._score_parent_proximity * (1 - offset))
 
             if (record.complete === 'FALSE' || record.taxon_scope) {
-                record._score_relevance *= Math.pow(0.9, record.parent_proximity)
+                record._score_relevance *= Math.pow(0.9, record.parent_proximity + 1)
             }
         }
 
