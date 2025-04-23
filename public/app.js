@@ -830,7 +830,7 @@
         {
             const parts = [
                 { letter: 'r', key: '_score_relevance', color: result._resource ? '#000000' : '#989d89' },
-                { letter: 'u', key: '_score_usability', color: '#989d89' },
+                { letter: 'e', key: '_score_usability', color: '#989d89' },
                 { letter: 't', key: '_score_recency', color: '#989d89' },
             ]
             const totalWidth = 60
