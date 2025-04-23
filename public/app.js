@@ -550,7 +550,7 @@
         return resources
     }
 
-    function isTaxonParent (parentName, ancestry) {
+    function getTaxonParentProximity (parentName, ancestry) {
         const taxon = DATA.taxa[parentName]
         const children = taxon.children_gbif ? taxon.children_gbif.split('; ') : undefined
 
@@ -568,7 +568,7 @@
             }
         }
 
-        return -1
+        return null
     }
 
     async function getResults (taxon, params) {
@@ -615,7 +615,7 @@
 
         // Use the GBIF ID-based checklist and the GBIF index to keys to find keys
         const matchingResources = await findGbifMatches(checklist)
-        const seenCatalogWorks = new Set()
+        const checklistMatches = {}
         for (const resourceId in matchingResources) {
             const catalogId = resourceId.replace(/:\d+$/, '')
             const resource = DATA.resources[resourceId]
@@ -633,35 +633,50 @@
                     record[field] = record[field].join('; ')
                 }
             }
-            seenCatalogWorks.add(catalogId)
             results.push(record)
+
+            if (catalogId in checklistMatches) {
+                checklistMatches[catalogId].push(record)
+            } else {
+                checklistMatches[catalogId] = [record]
+            }
         }
 
         // Use the less granular metadata in the catalog to find works
         for (const id in DATA.catalog) {
-            // Skip works that were already found with GBIF data
-            if (seenCatalogWorks.has(id)) { continue }
+            const record = { ...DATA.catalog[id] }
 
-            const record = DATA.catalog[id]
+            // Determine proximity of parents (in taxon ranks)
+            const parentTaxaProximity= record.taxon.split('; ')
+                .map(taxonName => getTaxonParentProximity(taxonName, parentTaxa))
+                .filter(distance => distance !== null)
+            const closestParentProximity = Math.min(...parentTaxaProximity)
+            const parentProximityScore = (parentTaxa.length - closestParentProximity) / parentTaxa.length
+
+            // Skip works that were already found with GBIF data
+            if (checklistMatches[id]) {
+                for (const resource of checklistMatches[id]) {
+                    if (isFinite(closestParentProximity)) {
+                        resource.parent_proximity = closestParentProximity
+                        resource._score_parent_proximity = parentProximityScore
+                    }
+                }
+
+                continue
+            }
 
             // If works would have been found with GBIF data, indicate zero coverage.
             // The works are still included as they might still have coverage but for
             // synonym resolution.
             if (DATA.resources[id + ':1']) {
-              record.species_ratio = 0
-              record.observation_ratio = 0
+                record.species_ratio = 0
+                record.observation_ratio = 0
             }
 
             // Determine relevance of work
-            let closestTaxon = Infinity
-            for (const taxonName of record.taxon.split('; ')) {
-                const distance = isTaxonParent(taxonName, parentTaxa)
-                if (distance !== -1 && distance < closestTaxon) {
-                    closestTaxon = distance
-                }
-            }
-            if (isFinite(closestTaxon)) {
-                record.parent_proximity = (parentTaxa.length - closestTaxon) / parentTaxa.length
+            if (isFinite(closestParentProximity)) {
+                record.parent_proximity = closestParentProximity
+                record._score_parent_proximity = parentProximityScore
             } else {
                 // Taxa not applicable
                 continue
@@ -683,14 +698,16 @@
         record._score_usability = 1
         record._score_recency = 1
 
-        if ('parent_proximity' in record) {
-            const offset = 0.5
-            record._score_relevance *= offset + (record.parent_proximity * (1 - offset))
-        }
-
         if ('species_ratio' in record) {
             const offset = 0.5
             record._score_relevance *= offset + (record.species_ratio * (1 - offset))
+        } else if ('parent_proximity' in record) {
+            const offset = 0.5
+            record._score_relevance *= offset + (record._score_parent_proximity * (1 - offset))
+
+            if (record.complete === 'FALSE' || record.taxon_scope) {
+                record._score_relevance *= Math.pow(0.9, record.parent_proximity)
+            }
         }
 
         if (record.target_taxa) {
@@ -702,10 +719,6 @@
                 some = some || match
             }
             record._score_relevance *= every ? 1 : some ? 0.9 : 0;
-        }
-
-        if ('parent_proximity' in record && (record.complete === 'FALSE' || record.taxon_scope)) {
-            record._score_usability *= 0.9
         }
 
         if (record.key_type) {
@@ -1132,6 +1145,7 @@
             scoreResult(result, taxon, params)
             result._element = makeResult(result, checklist)
         }
+        console.log(results)
         DATA.results = results.filter(result => result._score > 0)
 
         render('_score')
