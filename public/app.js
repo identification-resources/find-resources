@@ -958,7 +958,7 @@
         const $results = document.getElementById('results')
         empty($results)
         for (const result of Object.values(groupedResults)) {
-            $results.appendChild(result._element)
+            $results.appendChild(makeResult(result, DATA.checklist))
         }
     }
 
@@ -1084,7 +1084,7 @@
         empty($versions)
 
         for (const version of result._versions) {
-            $versions.appendChild(version._element)
+            $versions.appendChild(makeResult(version, checklist))
         }
 
         const $dialog = $versions.closest('dialog')
@@ -1200,9 +1200,9 @@
         // Sort and render
         for (const result of results) {
             scoreResult(result, taxon, params)
-            result._element = makeResult(result, checklist)
         }
         DATA.results = results.filter(result => result._score > 0)
+        DATA.checklist = checklist
 
         render('_score')
     } else {
