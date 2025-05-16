@@ -720,20 +720,21 @@
     }
 
     function scoreResult (record, taxon, params) {
-        record._score_relevance = 1
+        record._score_applicability = 1
         record._score_usability = 1
         record._score_recency = 1
 
         if ('species_ratio' in record) {
             const offset = 0.5
-            record._score_relevance *= offset + (record.species_ratio * (1 - offset))
-        } else if ('parent_proximity' in record) {
-            const offset = 0.5
-            record._score_relevance *= offset + (record._score_parent_proximity * (1 - offset))
+            record._score_applicability *= offset + (record.species_ratio * (1 - offset))
+        } else if (record.complete === 'FALSE' || record.taxon_scope) {
+            const parentProximity = 'parent_proximity' in record ? record.parent_proximity + 1 : 1
+            record._score_applicability *= Math.pow(0.9, parentProximity)
+        }
 
-            if (record.complete === 'FALSE' || record.taxon_scope) {
-                record._score_relevance *= Math.pow(0.9, record.parent_proximity + 1)
-            }
+        if ('parent_proximity' in record) {
+            const offset = 0.8
+            record._score_applicability *= offset + (record._score_parent_proximity * (1 - offset))
         }
 
         if (record.target_taxa) {
@@ -744,7 +745,7 @@
                 every = every && match
                 some = some || match
             }
-            record._score_relevance *= every ? 1 : some ? 0.9 : 0;
+            record._score_applicability *= every ? 1 : some ? 0.9 : 0;
         }
 
         if (record.key_type) {
@@ -777,7 +778,7 @@
             }
         }
 
-        record._score = record._score_relevance * record._score_usability * record._score_recency
+        record._score = record._score_applicability * record._score_usability * record._score_recency
     }
 
     function makeResult (result, checklist) {
@@ -1115,18 +1116,18 @@
     const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
     const SCORE_PARTS = [
         {
-            letter: 'r',
-            label: 'Relevance',
-            key: '_score_relevance'
+            letter: 'a',
+            label: 'Applicability',
+            key: '_score_applicability'
         },
         {
-            letter: 'e',
-            label: 'Ease of use',
+            letter: 'u',
+            label: 'Usability',
             key: '_score_usability'
         },
         {
-            letter: 't',
-            label: 'Timeliness',
+            letter: 'r',
+            label: 'Recency',
             key: '_score_recency'
         },
     ]
