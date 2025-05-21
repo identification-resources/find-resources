@@ -866,61 +866,24 @@
 
         // COLUMN 3
         const $coverageColumn = document.createElement('div')
-        const $coverage = document.createElement('div')
         {
-            const totalWidth = 60
-            const textWidth = 16
-            const partHeight = 14
+            const $coverage = document.createElement('div')
+            $coverage.addEventListener('click', event => {
+                event.stopPropagation()
+                openCoverageDialog(result, checklist)
+            })
 
-            const $svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-            $svg.setAttribute('width', totalWidth)
-            $svg.setAttribute('height', partHeight * SCORE_PARTS.length)
-            $svg.setAttribute('viewbox', `0 0 ${totalWidth} ${partHeight * SCORE_PARTS.length}`)
-
-            for (let i = 0; i < SCORE_PARTS.length; i++) {
-                const { letter, label, key } = SCORE_PARTS[i]
-                const score = result[key]
-                const $g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-                $g.setAttribute('transform', `translate(0 ${i * partHeight})`)
-                const $rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-                $rect.setAttribute('width', totalWidth)
-                $rect.setAttribute('height', partHeight)
-                $rect.setAttribute('fill', '#ffffff')
-                const $title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
-                $title.textContent = `${label}: ${(score * 100).toFixed()}%`
-                const $text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-                $text.setAttribute('dx', textWidth / 2)
-                $text.setAttribute('dy', '25%')
-                $text.setAttribute('font-size', '12')
-                $text.setAttribute('font-weight', 'bold')
-                $text.setAttribute('text-anchor', 'middle')
-                $text.textContent = letter
-                const $line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-                $line.setAttribute('x1', textWidth)
-                $line.setAttribute('x2', textWidth + score * (totalWidth - textWidth))
-                $line.setAttribute('y1', partHeight / 2)
-                $line.setAttribute('y2', partHeight / 2)
-                $line.setAttribute('stroke', key === '_score_relevance' && result._resource ? '#000000' : '#989d89')
-                $line.setAttribute('stroke-width', 3)
-                const $baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-                $baseline.setAttribute('x1', textWidth)
-                $baseline.setAttribute('x2', totalWidth)
-                $baseline.setAttribute('y1', partHeight / 2)
-                $baseline.setAttribute('y2', partHeight / 2)
-                $baseline.setAttribute('stroke', '#989d89')
-                $g.append($rect, $title, $text, $baseline, $line)
-                $svg.append($g)
+            if (isNaN(result.species_ratio)) {
+                $coverage.innerHTML = octicons.info
+            } else {
+                $coverage.appendChild(makePieChart(result.species_ratio))
+                if (result._resource && result._resource.flags) {
+                    $coverage.append('*')
+                }
             }
-            $coverage.append($svg)
+
+            $coverageColumn.append($coverage)
         }
-        $coverage.addEventListener('click', event => {
-            event.stopPropagation()
-            openCoverageDialog(result, checklist)
-        })
-        if (!isNaN(result.species_ratio) && result._resource && result._resource.flags) {
-            $coverage.append('*')
-        }
-        $coverageColumn.appendChild($coverage)
         $result.appendChild($coverageColumn)
 
         return $result
@@ -966,6 +929,7 @@
     function makePieChart (value) {
         const $container = new DocumentFragment()
         const $chart = document.createElement('span')
+        $chart.setAttribute('title', (value * 100).toFixed(2) + '%')
         $chart.setAttribute('style', `
             width: 1.5em;
             height: 1.5em;
@@ -1115,6 +1079,11 @@
     ]
     const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
     const SCORE_PARTS = [
+        {
+            letter: 't',
+            label: 'Total',
+            key: '_score'
+        },
         {
             letter: 'a',
             label: 'Applicability',
