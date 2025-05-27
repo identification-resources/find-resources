@@ -605,32 +605,31 @@
         return null
     }
 
-    async function getResults (taxon, params) {
+    async function getResults (query) {
         // Get parent taxa
-        const parentTaxa = getTaxonParents(taxon)
-        if (taxon.key === 0) {
+        const parentTaxa = getTaxonParents(query.taxon)
+        if (query.taxon.key === 0) {
             parentTaxa.push({ name: 'Biota' })
         }
 
         // Get place info
-        const allPlaces = await getPlaces(params.get('location'))
+        const allPlaces = await getPlaces(query.location)
         const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
         const country = allPlaces.find(place => place.place_type === 12)
 
         // Get checklist
         let checklist
-        if (params.get('checklist') === 'catalog') {
+        if (query.checklistType === 'catalog') {
             // Use resource in catalog as basis
-            const resource = await loadKey(params.get('checklist-catalog'))
-            checklist = await getSpeciesByChecklist(taxon.key, resource)
-        } else if (params.get('checklist') === 'search' && country) {
+            const resource = await loadKey(query.checklistSource)
+            checklist = await getSpeciesByChecklist(query.taxon.key, resource)
+        } else if (query.checklistType === 'search' && country) {
             // Use GBIF occurrence data
             const countryCode = await getCountryCode(country.id)
-            checklist = await getOccurrencesBySpecies(taxon.key, countryCode)
-        } else if (params.get('checklist') === 'gbif_dataset') {
-            const datasetKey = params.get('checklist-gbif-dataset')
-            checklist = await getSpeciesByDataset(taxon.key, datasetKey)
+            checklist = await getOccurrencesBySpecies(query.taxon.key, countryCode)
+        } else if (query.checklistType === 'gbif_dataset') {
+            checklist = await getSpeciesByDataset(query.taxon.key, query.checklistSource)
         } else {
             checklist = []
         }
@@ -719,7 +718,7 @@
         return [results, checklist]
     }
 
-    function scoreResult (record, taxon, params) {
+    function scoreResult (record, query) {
         record._score_applicability = 1
         record._score_usability = 1
         record._score_recency = 1
@@ -741,7 +740,7 @@
             let every = true
             let some = false
             for (const target of record.target_taxa.split('; ')) {
-                const match = compareRanks(taxon.rank.toLowerCase(), target) < 0
+                const match = compareRanks(query.taxon.rank.toLowerCase(), target) < 0
                 every = every && match
                 some = some || match
             }
@@ -756,7 +755,7 @@
                 record._score_usability *= 0.9
             } else if (types.includes('gallery')) {
                 record._score_usability *= 0.8
-            } else {
+            } else /* collection, algorithm, supplement */ {
                 record._score_usability *= 0.7
             }
         }
@@ -1105,6 +1104,57 @@
         $dialog.showModal()
     }
 
+    async function setupQuery () {
+        const query = {}
+
+        const params = new URLSearchParams(window.location.search)
+
+        if (params.has('taxon') && params.get('taxon').match(/^\d+$/)) {
+            await getTaxon(params.get('taxon')).then(taxon => {
+                query.taxon = taxon
+                document.getElementById('taxon').value = params.get('taxon')
+                document.getElementById('search_taxon').value = taxon.scientificName
+            }, () => {})
+        }
+
+        if (params.has('location') && params.get('location').match(/^\d{1,3}(\.\d+)?,\s*\d{1,3}(\.\d+)?$/)) {
+            query.location = params.get('location')
+            document.getElementById('location').value = query.location
+            document.getElementById('search_location').value = query.location
+        }
+
+        if (params.has('checklist') && ['gbif_dataset', 'catalog'].includes(params.get('checklist'))) {
+            query.checklistType = params.get('checklist')
+        } else {
+            query.checklistType = 'search'
+            query.checklistSource = true
+        }
+        document.getElementById('checklist_' + query.checklistType).checked = true
+
+        if (params.has('checklist-gbif-dataset')) {
+            const source = params.get('checklist-gbif-dataset')
+            await fetchJson(`https://api.gbif.org/v1/dataset/${source}`).then(dataset => {
+                query.checklistSource = source
+                document.getElementById('checklist-gbif-dataset').value = source
+                document.getElementById('search_checklist-gbif-dataset').value = dataset.title
+            })
+        }
+
+        if (params.has('checklist-catalog')) {
+            const source = params.get('checklist-catalog')
+            const resource = DATA.resources[source]
+            const work = DATA.catalog[source.split(':')[0]]
+
+            if (resource) {
+                query.checklistSource = source
+                document.getElementById('checklist-catalog').value = source
+                document.getElementById('search_checklist-catalog').value = (resource.metadata.catalog && resource.metadata.catalog.title) ?? work.title
+            }
+        }
+
+        return query.taxon && query.location && query.checklistSource ? query : null
+    }
+
     const DATA = {}
     const RANKS = [
         'kingdom',
@@ -1168,58 +1218,35 @@
     })
 
     async function loadData () {
-        const [catalog, resources, gbif, places, taxa] = await Promise.all([
-            indexCsv('/assets/data/catalog.csv', 'id'),
-            loadKeys(),
+        const [gbif, places, taxa] = await Promise.all([
             fetchJson('/assets/data/resources/gbif.index.json'),
             fetchJson('./data/places.json'),
             indexCsv('/assets/data/taxa.csv', 'name')
         ])
-        DATA.catalog = catalog
-        DATA.resources = resources
         DATA.gbif = gbif
         DATA.places = places
         DATA.taxa = taxa
     }
 
-    const params = new URLSearchParams(window.location.search)
-    if (params.has('taxon') && params.has('location')) {
+    await Promise.all([
+        (async () => { DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id') })(),
+        (async () => { DATA.resources = await loadKeys() })()
+    ])
+
+    const query = await setupQuery()
+    if (query != null) {
         document.getElementById('results_message').textContent = 'Loading...'
-
-        document.getElementById('taxon').value = params.get('taxon')
-        document.getElementById('location').value = params.get('location')
-        document.getElementById('checklist_' + (params.get('checklist') || 'search')).checked = true
-        document.getElementById('checklist-gbif-dataset').value = params.get('checklist-gbif-dataset')
-        document.getElementById('checklist-catalog').value = params.get('checklist-catalog')
-
-        const taxon = await getTaxon(params.get('taxon'))
-        document.getElementById('search_taxon').value = taxon.scientificName
-        document.getElementById('search_location').value = params.get('location')
-
         await loadData()
 
-        if (params.has('checklist-gbif-dataset') && params.get('checklist-gbif-dataset')) {
-            const key = params.get('checklist-gbif-dataset')
-            const dataset = await fetchJson(`https://api.gbif.org/v1/dataset/${key}`)
-            document.getElementById('search_checklist-gbif-dataset').value = dataset.title
-        }
-
-        if (params.has('checklist-catalog') && params.get('checklist-catalog')) {
-            const work = DATA.catalog[params.get('checklist-catalog').split(':')[0]]
-            document.getElementById('search_checklist-catalog').value = work.title
-        }
-
-        const [results, checklist] = await getResults(taxon, params)
+        const [results, checklist] = await getResults(query)
 
         // Sort and render
         for (const result of results) {
-            scoreResult(result, taxon, params)
+            scoreResult(result, query)
         }
         DATA.results = results.filter(result => result._score > 0)
         DATA.checklist = checklist
 
         render('_score')
-    } else {
-        await loadData()
     }
 })()
