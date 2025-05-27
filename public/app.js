@@ -866,24 +866,74 @@
 
         // COLUMN 3
         const $coverageColumn = document.createElement('div')
+        const $coverage = document.createElement('div')
         {
-            const $coverage = document.createElement('div')
-            $coverage.addEventListener('click', event => {
-                event.stopPropagation()
-                openCoverageDialog(result, checklist)
-            })
+            const totalWidth = 80
+            const textWidth = 16
+            const partHeight = 14
+            const scoreWidth = 30
 
-            if (isNaN(result.species_ratio)) {
-                $coverage.innerHTML = octicons.info
-            } else {
-                $coverage.appendChild(makePieChart(result.species_ratio))
-                if (result._resource && result._resource.flags) {
-                    $coverage.append('*')
-                }
+            const barInnerHeight = 4
+            const barWidth = totalWidth - textWidth - scoreWidth
+            const barBorder = 1
+
+            const parts = [{ letter: 't', label: 'Total score', key: '_score' }]
+            if (result._resource) {
+                parts.push({ letter: 's', label: 'Species', key: 'species_ratio' })
             }
 
-            $coverageColumn.append($coverage)
+            const $svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            $svg.setAttribute('width', totalWidth)
+            $svg.setAttribute('height', partHeight * parts.length)
+            $svg.setAttribute('viewbox', `0 0 ${totalWidth} ${partHeight * parts.length}`)
+
+            for (let i = 0; i < parts.length; i++) {
+                const { letter, label, key } = parts[i]
+                const score = result[key]
+                const $g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+                $g.setAttribute('transform', `translate(0 ${i * partHeight})`)
+                const $title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
+                $title.textContent = `${label}: ${(score * 100).toFixed()}%`
+                const $text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+                $text.setAttribute('dx', textWidth / 2)
+                $text.setAttribute('y', 11)
+                $text.setAttribute('font-size', 12)
+                $text.setAttribute('font-weight', 'bold')
+                $text.setAttribute('text-anchor', 'middle')
+                $text.textContent = letter
+                const $line = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+                $line.setAttribute('x', textWidth + barBorder)
+                $line.setAttribute('y', (partHeight - barInnerHeight) / 2)
+                $line.setAttribute('width', score * (barWidth - 2 * barBorder))
+                $line.setAttribute('height', barInnerHeight)
+                $line.setAttribute('fill', key === 'species_ratio' ? '#000000' : '#989d89')
+                const $baseline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+                $baseline.setAttribute('x', textWidth + barBorder / 2)
+                $baseline.setAttribute('y', (partHeight - barInnerHeight - barBorder) / 2)
+                $baseline.setAttribute('width', barWidth - barBorder)
+                $baseline.setAttribute('height', barInnerHeight + barBorder)
+                $baseline.setAttribute('fill', 'white')
+                $baseline.setAttribute('stroke', '#000000')
+                $baseline.setAttribute('stroke-width', barBorder)
+                const $score = document.createElementNS('http://www.w3.org/2000/svg', 'text')
+                $score.setAttribute('x', totalWidth)
+                $score.setAttribute('y', 11)
+                $score.setAttribute('font-size', 12)
+                $score.setAttribute('text-anchor', 'end')
+                $score.textContent = `${score.toFixed(2)}`
+                $g.append($title, $text, $baseline, $line, $score)
+                $svg.append($g)
+            }
+            $coverage.append($svg)
         }
+        $coverage.addEventListener('click', event => {
+            event.stopPropagation()
+            openCoverageDialog(result, checklist)
+        })
+        if (!isNaN(result.species_ratio) && result._resource && result._resource.flags) {
+            $coverage.append('*')
+        }
+        $coverageColumn.appendChild($coverage)
         $result.appendChild($coverageColumn)
 
         return $result
@@ -929,7 +979,6 @@
     function makePieChart (value) {
         const $container = new DocumentFragment()
         const $chart = document.createElement('span')
-        $chart.setAttribute('title', (value * 100).toFixed(2) + '%')
         $chart.setAttribute('style', `
             width: 1.5em;
             height: 1.5em;
@@ -1079,11 +1128,6 @@
     ]
     const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
     const SCORE_PARTS = [
-        {
-            letter: 't',
-            label: 'Total',
-            key: '_score'
-        },
         {
             letter: 'a',
             label: 'Applicability',
