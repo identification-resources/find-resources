@@ -605,6 +605,41 @@
         return null
     }
 
+    function getScopeMatch (record, scopes) {
+        const available = {}
+        for (const scope of record.scope.split('; ')) {
+            if (!SCOPES[scope]) continue
+
+            const { category } = SCOPES[scope]
+            if (!available[category]) {
+                available[category] = []
+            }
+            available[category].push(scope)
+        }
+
+        const requested = {}
+        for (const scope of scopes) {
+            if (!SCOPES[scope]) continue
+
+            const { category } = SCOPES[scope]
+            if (!requested[category]) {
+                requested[category] = []
+            }
+            requested[category].push(scope)
+        }
+
+        for (const category in requested) {
+            const match = requested[category].some(scope => available[category]
+                ? available[category].includes(scope)
+                : SCOPES[scope].main)
+            if (!match) {
+                return false
+            }
+        }
+
+        return true
+    }
+
     async function getResults (query) {
         // Get parent taxa
         const parentTaxa = getTaxonParents(query.taxon)
@@ -762,6 +797,12 @@
 
         if (!record.fulltext_url && !record.archive_url) {
             record._score_usability *= 0.9
+        }
+
+        if (query.scopes) {
+            if (!getScopeMatch(record, query.scopes)) {
+                record._score_usability *= 0
+            }
         }
 
         if (record.date) {
@@ -1152,6 +1193,17 @@
             }
         }
 
+        if (params.has('scope')) {
+            query.scopes = params.getAll('scope')
+
+            for (const scope of query.scopes) {
+                const $input = document.getElementById(`scope_${scope}`)
+                if ($input) {
+                    $input.checked = true
+                }
+            }
+        }
+
         return query.taxon && query.location && query.checklistSource ? query : null
     }
 
@@ -1194,6 +1246,45 @@
             key: '_score_recency'
         },
     ]
+    const SCOPES = {
+        'adults': { category: 'life_stage', main: true },
+        'pupae': { category: 'life_stage', main: false },
+        'juveniles': { category: 'life_stage', main: false },
+        'subimagos': { category: 'life_stage', main: false },
+        'larvae': { category: 'life_stage', main: false },
+        'larvae (instar V)': { category: 'life_stage', main: false },
+        'larvae (instar IV)': { category: 'life_stage', main: false },
+        'larvae (instar III)': { category: 'life_stage', main: false },
+        'larvae (instar I)': { category: 'life_stage', main: false },
+        'nymphs': { category: 'life_stage', main: false },
+        'nymphs (instar V)': { category: 'life_stage', main: false },
+        'eggs': { category: 'life_stage', main: false },
+
+        'flowering plants': { category: 'plant_phenology', main: true },
+        'fruiting plants': { category: 'plant_phenology', main: false },
+        'without sporangia': { category: 'plant_phenology', main: false },
+        'with sporangia': { category: 'plant_phenology', main: false },
+        'teleomorphs': { category: 'plant_phenology', main: false },
+
+        'females': { category: 'sex', main: false },
+        'males': { category: 'sex', main: false },
+
+        'queens': { category: 'caste', main: false },
+        'workers': { category: 'caste', main: false },
+        'soldiers': { category: 'caste', main: false },
+        'alatae': { category: 'caste', main: false },
+        'apterae': { category: 'caste', main: false },
+        'viviparae': { category: 'caste', main: false },
+
+        'nests': { category: 'evidence', main: false },
+        'galls': { category: 'evidence', main: false },
+        'puparia': { category: 'evidence', main: false },
+        'eggcases': { category: 'evidence', main: false },
+        'bones': { category: 'evidence', main: false },
+        'bones (skulls)': { category: 'evidence', main: false },
+        'bones (upper jaws)': { category: 'evidence', main: false },
+        'bones (lower jaws)': { category: 'evidence', main: false },
+    }
 
     function compareRanks (a, b) {
         return RANKS.indexOf(a) - RANKS.indexOf(b)
