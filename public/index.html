@@ -31,38 +31,35 @@
         </header>
 
         <main>
-            <div id="intro_wrapper">
+            <div id="input_wrapper">
                 <h2>Find identification resources</h2>
 
-                <p>
-                    <b>Usage:</b> Select an organism that you want to identify. In the left field labeled "Taxon",
-                    search and select the scientific name of the group of species that you know it is part of.
-                    In the right field, search for the region or paste coordinates (formatted like: "0.000, 0.000")
-                    to the location where you found the organism.
-                </p>
+                <form action="#results_wrapper">
+                    <fieldset>
+                        <legend>Usage</legend>
+                        <p>
+                            Select an organism that you want to identify. In the left field labeled "Taxon", search
+                            and select the scientific name of the group of species that you know it is part of. In
+                            the right field, search for the region or paste coordinates (formatted like: "0.000, 0.000")
+                            to the location where you found the organism.
+                        </p>
 
-                <p>
-                    <b>Checklists:</b> To calculate whether an identification resource is suitable for the
-                    given location, a checklist is used and compared against the list of species included
-                    in the key. This checklist can either be generated from GBIF occurrences, in which case
-                    the list consists of all species in the given country with occurrences in GBIF.
-                    Alternatively, a resource from the catalog can be used to compare against.
-                </p>
+                        <div style="display: flex; gap: 2em; margin-bottom: 1em;">
+                            <div id="group_taxon" style="flex-grow: 1;"></div>
+                            <div id="group_location" style="flex-grow: 1;"></div>
+                        </div>
+                    </fieldset>
 
-                <p>
-                    <a href="#" onclick="license_info.showModal()">Data license</a>
-                </p>
-            </div>
+                    <fieldset>
+                        <legend>Checklists</legend>
+                        <p>
+                            To calculate whether an identification resource is suitable for the given location, a
+                            checklist is used and compared against the list of species included in the key. This
+                            checklist can either be generated from GBIF occurrences, in which case the list consists
+                            of all species in the given country with occurrences in GBIF. Alternatively, a resource
+                            from the catalog can be used to compare against.
+                        </p>
 
-            <div id="input_wrapper">
-                <form action=".">
-                    <div style="display: flex; gap: 2em;">
-                        <div id="group_taxon" style="flex-grow: 1;"></div>
-                        <div id="group_location" style="flex-grow: 1;"></div>
-                    </div>
-
-                    <div>
-                        <legend>Checklist</legend>
                         <input type="radio" name="checklist" value="search" checked id="checklist_search">
                         <label for="checklist_search">Checklist generated from GBIF occurrences</label>
 
@@ -77,11 +74,18 @@
                         <input type="radio" name="checklist" value="catalog" id="checklist_catalog">
                         <label for="checklist_catalog">Checklist from the catalog</label>
                         <div id="group_checklist-catalog" style="margin-left: 25px;"></div>
-                    </div>
+                    </fieldset>
 
-                    <div>
+                    <fieldset>
+                        <legend>Filters</legend>
+                        <p>
+                            Results can be filtered using additional constraints, including properties of the
+                            individual or observation that limit or change which identifying characteristiscs
+                            can be used.
+                        </p>
+
                         <details>
-                            <summary>Filter by characteristics of the individual</summary>
+                            <summary>Filter by properties of the individual or observation</summary>
                             <div>
                                 <b>Life stage:</b>
                                 <input type="checkbox" name="scope" value="adults" id="scope_adults">
@@ -138,10 +142,14 @@
                                 <label for="scope_bones">Bone</label>
                             </div>
                         </details>
-                    </div>
+                    </fieldset>
 
                     <button type="submit">Search</button>
                 </form>
+
+                <p>
+                    <a href="#" onclick="license_info.showModal()">Data license</a>
+                </p>
             </div>
 
             <div id="results_wrapper">

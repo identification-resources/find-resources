@@ -14,13 +14,12 @@ body {
 
 body > main {
   display: grid;
-  grid-template-rows: min-content 1fr;
+  grid-template-rows: 1fr;
   grid-template-columns: 1fr 1fr;
-  grid-template-areas: "intro results" "input results";
+  grid-template-areas: "input results";
   justify-items: stretch;
   align-items: stretch;
   gap: 2em;
-  padding: 1.5em 2em;
   min-height: 0;
 }
 
@@ -37,9 +36,9 @@ details > * {
 
 @media screen and (max-width: 1058px) {
   body > main {
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto;
     grid-template-columns: 1fr;
-    grid-template-areas: "intro" "input" "results";
+    grid-template-areas: "input" "results";
   }
 
   html, body, body > main {
@@ -51,11 +50,27 @@ details > * {
   }
 }
 
-#intro_wrapper { grid-area: intro; }
-#input_wrapper { grid-area: input; }
+#input_wrapper {
+  grid-area: input;
+  overflow: auto;
+}
 
-form > div {
-  margin-bottom: 1em;
+form > fieldset {
+  border: none;
+  margin: 0 0 2em 0;
+  padding: 0;
+}
+
+form > fieldset > legend {
+  font-size: 1em;
+  font-weight: bold;
+  padding: 0;
+}
+
+form > fieldset > p {
+  color: #666;
+  font-size: 14px;
+  margin-top: 0;
 }
 
 #results_wrapper {
