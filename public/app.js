@@ -5,6 +5,11 @@
         }
     }
 
+    function log (text) {
+        console.debug(text)
+        document.getElementById('results_message').textContent = text
+    }
+
     function makeInputControl (key, label, getSuggestions) {
         const $group = document.getElementById(`group_${key}`)
 
@@ -439,6 +444,7 @@
             if (response.length < pageSize) {
                 return species
             } else {
+                log(`Loading checklist (${species.length})...`)
                 offset += pageSize
             }
         }
@@ -471,6 +477,7 @@
             if (response.endOfRecords) {
                 return species
             } else {
+                log(`Loading checklist (${species.length})...`)
                 offset += pageSize
             }
         }
@@ -493,6 +500,7 @@
             if (response.endOfRecords) {
                 return species
             } else {
+                log(`Loading checklist (${species.size})...`)
                 offset += pageSize
             }
         }
@@ -648,12 +656,14 @@
         }
 
         // Get place info
+        log('Loading location info...')
         const allPlaces = await getPlaces(query.location)
         const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
         const country = allPlaces.find(place => place.place_type === 12)
 
         // Get checklist
+        log('Loading checklist...')
         let checklist
         if (query.checklistType === 'catalog') {
             // Use resource in catalog as basis
@@ -1326,7 +1336,7 @@
 
     const query = await setupQuery()
     if (query != null) {
-        document.getElementById('results_message').textContent = 'Loading...'
+        log('Loading...')
         await loadData()
 
         const [results, checklist] = await getResults(query)
