@@ -1158,7 +1158,7 @@
             }, () => {})
         }
 
-        if (params.has('location') && params.get('location').match(/^\d{1,3}(\.\d+)?,\s*\d{1,3}(\.\d+)?$/)) {
+        if (params.has('location') && params.get('location').match(/^-?\d{1,3}(\.\d+)?,\s*-?\d{1,3}(\.\d+)?$/)) {
             query.location = params.get('location')
             document.getElementById('location').value = query.location
             document.getElementById('search_location').value = query.location
