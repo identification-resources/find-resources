@@ -815,6 +815,13 @@
             }
         }
 
+        if (query.languages) {
+            const languages = record.language.split('; ')
+            if (query.languages.every(l => !languages.includes(l))) {
+                record._score_usability *= 0
+            }
+        }
+
         if (record.date) {
             const year = parseInt(record.date.split('-')[0])
 
@@ -1155,6 +1162,28 @@
         $dialog.showModal()
     }
 
+    function setupForm () {
+        const $languages = document.getElementById('filter_language')
+        const languages = {}
+        for (const id in DATA.catalog) {
+            for (const language of DATA.catalog[id].language.split('; ')) {
+                languages[language] = (languages[language] || 0) + 1
+            }
+        }
+
+        for (const language of Object.keys(languages).sort((a, b) => languages[b] - languages[a])) {
+            const $input = document.createElement('input')
+            $input.setAttribute('type', 'checkbox')
+            $input.setAttribute('name', 'l')
+            $input.setAttribute('value', language)
+            $input.setAttribute('id', `language_${language}`)
+            const $label = document.createElement('label')
+            $label.setAttribute('for', `language_${language}`)
+            $label.textContent = LANGUAGE_NAMES.of(language)
+            $languages.append($input, ' ', $label, ' ')
+        }
+    }
+
     async function setupQuery () {
         const query = {}
 
@@ -1208,6 +1237,17 @@
 
             for (const scope of query.scopes) {
                 const $input = document.getElementById(`scope_${scope}`)
+                if ($input) {
+                    $input.checked = true
+                }
+            }
+        }
+
+        if (params.has('l')) {
+            query.languages = params.getAll('l')
+
+            for (const language of query.languages) {
+                const $input = document.getElementById(`language_${language}`)
                 if ($input) {
                     $input.checked = true
                 }
@@ -1333,6 +1373,8 @@
         (async () => { DATA.catalog = await indexCsv('/assets/data/catalog.csv', 'id') })(),
         (async () => { DATA.resources = await loadKeys() })()
     ])
+
+    setupForm()
 
     const query = await setupQuery()
     if (query != null) {
