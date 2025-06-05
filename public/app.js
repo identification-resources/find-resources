@@ -665,7 +665,15 @@
         // Get checklist
         log('Loading checklist...')
         let checklist
-        if (query.checklistType === 'catalog') {
+        if (compareRanks(query.taxon.rank.toLowerCase(), 'species') >= 0) {
+            checklist = [{
+                id: query.taxon.key,
+                count: 0,
+                href: `https://gbif.org/species/${query.taxon.key}`,
+                name: query.taxon.canonicalName,
+                authorship: query.taxon.authorship
+            }]
+        } else if (query.checklistType === 'catalog') {
             // Use resource in catalog as basis
             const resource = await loadKey(query.checklistSource)
             checklist = await getSpeciesByChecklist(query.taxon.key, resource)
