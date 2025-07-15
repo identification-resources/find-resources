@@ -1004,8 +1004,28 @@
         return $result
     }
 
+    function makeNote () {
+        const $blockquote = document.createElement('blockquote')
+        const $strong = document.createElement('strong')
+        $strong.textContent = 'Note:'
+        const $a = document.createElement('a')
+        $a.setAttribute('href', '/#header-data')
+        $a.setAttribute('target', '_blank')
+        $a.textContent = 'Suggest it for addition to the catalogue.'
+        $blockquote.append($strong, ' These search results may be incomplete, and additional suitable identification resources may exist. Missing a specific resource? ', $a)
+
+        return $blockquote
+    }
+
     function render (sortKey) {
         const results = DATA.results.slice()
+
+        // Add disclaimer note
+        results.push({
+            [sortKey]: 0.7,
+            id: 'disclaimer'
+        })
+
         results.sort((a, b) => (b[sortKey] - a[sortKey]) || (b._score - a._score))
 
         // Group
@@ -1037,6 +1057,11 @@
         const $results = document.getElementById('results')
         empty($results)
         for (const result of Object.values(groupedResults)) {
+            if (result.id === 'disclaimer') {
+                $results.appendChild(makeNote())
+                continue
+            }
+
             $results.appendChild(makeResult(result, DATA.checklist))
         }
     }
