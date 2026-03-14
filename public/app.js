@@ -314,7 +314,7 @@
 
             return [
                 {
-                    value: [lat, long],
+                    value: [lat, long].join(),
                     displayValue: query,
                     $result
                 }
@@ -365,7 +365,7 @@
             }
 
             return {
-                value: result.location,
+                value: result.location + ':' + result.display_name,
                 displayValue: result.display_name,
                 $result
             }
@@ -1260,10 +1260,11 @@
             }, () => {})
         }
 
-        if (params.has('location') && params.get('location').match(/^-?\d{1,3}(\.\d+)?,\s*-?\d{1,3}(\.\d+)?$/)) {
-            query.location = params.get('location')
+        if (params.has('location') && params.get('location').match(/^-?\d{1,3}(\.\d+)?,\s*-?\d{1,3}(\.\d+)?(:.+)?$/)) {
+            const [location, displayName] = params.get('location').split(':')
+            query.location = location
             document.getElementById('location').value = query.location
-            document.getElementById('search_location').value = query.location
+            document.getElementById('search_location').value = displayName
         }
 
         if (params.has('checklist') && ['gbif_dataset', 'catalog'].includes(params.get('checklist'))) {
