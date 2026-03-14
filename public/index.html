@@ -60,20 +60,24 @@
                             from the catalog can be used to compare against.
                         </p>
 
-                        <input type="radio" name="checklist" value="search" checked id="checklist_search">
-                        <label for="checklist_search">Checklist generated from GBIF occurrences</label>
+                        <div>
+                            <input type="radio" name="checklist" value="search" checked id="checklist_search">
+                            <label for="checklist_search">Checklist generated from GBIF occurrences</label>
+                        </div>
+
+                        <div>
+                            <input type="radio" name="checklist" value="gbif_dataset" id="checklist_gbif_dataset">
+                            <label for="checklist_gbif_dataset">Checklist from GBIF dataset</label>
+                            <div id="group_checklist-gbif-dataset" style="margin-left: 25px;"></div>
+                        </div>
 
                         <br>
 
-                        <input type="radio" name="checklist" value="gbif_dataset" id="checklist_gbif_dataset">
-                        <label for="checklist_gbif_dataset">Checklist from GBIF dataset</label>
-                        <div id="group_checklist-gbif-dataset" style="margin-left: 25px;"></div>
-
-                        <br>
-
-                        <input type="radio" name="checklist" value="catalog" id="checklist_catalog">
-                        <label for="checklist_catalog">Checklist from the catalog</label>
-                        <div id="group_checklist-catalog" style="margin-left: 25px;"></div>
+                        <div>
+                            <input type="radio" name="checklist" value="catalog" id="checklist_catalog">
+                            <label for="checklist_catalog">Checklist from the catalog</label>
+                            <div id="group_checklist-catalog" style="margin-left: 25px;"></div>
+                        </div>
                     </fieldset>
 
                     <fieldset>

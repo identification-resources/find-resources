@@ -10,11 +10,33 @@
         document.getElementById('results_message').textContent = text
     }
 
+    function setInputControlValidity ($input) {
+        const $searchInput = document.getElementById(`search_${$input.id}`)
+
+        if ($input.value === '') {
+            $searchInput.setCustomValidity('Please select a result')
+        } else {
+            $searchInput.setCustomValidity('')
+        }
+    }
+
+    function setInputControlRequired (key, required) {
+        const $group = document.getElementById(`group_${key}`)
+
+        if (required) {
+            $group.classList.add('search-group-required')
+        } else {
+            $group.classList.remove('search-group-required')
+        }
+
+        setInputControlValidity(document.getElementById(key))
+    }
+
     function makeInputControl (key, label, getSuggestions) {
         const $group = document.getElementById(`group_${key}`)
 
         const $input = document.createElement('input')
-        $input.setAttribute('hidden', '')
+        $input.setAttribute('type', 'hidden')
         $input.setAttribute('name', key)
         $input.setAttribute('id', key)
         $group.appendChild($input)
@@ -30,12 +52,19 @@
 
         const $searchInput = document.createElement('input')
         $searchInput.setAttribute('id', `search_${key}`)
+        $searchInput.setAttribute('autocomplete', 'off')
         $searchGroup.appendChild($searchInput)
         const $searchResults = document.createElement('ol')
         $searchGroup.appendChild($searchResults)
 
         let controller
         $searchInput.addEventListener('input', async function () {
+            if ($searchInput.value === '') {
+                $input.value = ''
+            }
+
+            setInputControlValidity($input)
+
             if (controller && !controller.aborted) {
                 controller.abort()
             }
@@ -64,6 +93,7 @@
                 $searchResultSelect.addEventListener('click', function (event) {
                     $input.value = $searchResult.getAttribute('data-value')
                     $searchInput.value = $searchResult.getAttribute('data-display-value')
+                    $searchInput.setCustomValidity('')
                     empty($searchResults)
                     $searchInput.focus()
                     event.preventDefault()
@@ -1378,12 +1408,33 @@
     makeInputControl('checklist-gbif-dataset', 'GBIF dataset', getGbifDatasetSuggestions)
     makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
 
+    for (const $input of document.querySelectorAll('input[name="checklist"]')) {
+        $input.addEventListener('change', function (event) {
+            const $oldGroup = document.querySelector('input[name="checklist"] ~ .search-group-required input[type=hidden]')
+            if ($oldGroup) {
+                setInputControlRequired($oldGroup.id, false)
+            }
+
+            const $group = event.target.parentElement.querySelector('input[name="checklist"] ~ div input[type=hidden]')
+            if ($group) {
+                setInputControlRequired($group.id, true)
+            }
+        })
+    }
+
     document.querySelector('#input_wrapper form').addEventListener('formdata', function (event) {
         const fields = [...event.formData]
         for (const [key, value] of fields) {
             if (value === '') {
                 event.formData.delete(key)
             }
+        }
+    })
+
+    document.querySelector('#input_wrapper form').addEventListener('submit', function () {
+        for (const $input of document.querySelectorAll('.search-group-required input[type=hidden]')) {
+            setInputControlValidity($input)
+            $input.reportValidity()
         }
     })
 
@@ -1410,6 +1461,16 @@
     setupForm()
 
     const query = await setupQuery()
+
+    setInputControlRequired('taxon', true)
+    setInputControlRequired('location', true)
+
+    if (query.checklistType === 'gbif_dataset') {
+        setInputControlRequired('checklist-gbif-dataset', true)
+    } else if (query.checklistType === 'catalog') {
+        setInputControlRequired('checklist-catalog', true)
+    }
+
     if (query != null) {
         log('Loading...')
         await loadData()

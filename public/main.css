@@ -220,3 +220,8 @@ form > fieldset > p {
   font-style: italic;
   font-weight: bold;
 }
+
+.search-group-required label:after {
+  color: red;
+  content: ' *';
+}
