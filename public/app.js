@@ -90,7 +90,7 @@
                 $searchResult.setAttribute('data-display-value', result.displayValue)
 
                 const $searchResultSelect = document.createElement('button')
-                $searchResultSelect.addEventListener('click', function (event) {
+                $searchResultSelect.addEventListener('pointerdown', function (event) {
                     $input.value = $searchResult.getAttribute('data-value')
                     $searchInput.value = $searchResult.getAttribute('data-display-value')
                     $searchInput.setCustomValidity('')
