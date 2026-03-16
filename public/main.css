@@ -169,7 +169,7 @@ form > fieldset > p {
   z-index: 1;
 }
 
-.search-group:not(:focus-within) ol {
+.search-group:not(:focus-within):not(:hover) ol {
   display: none;
 }
 
