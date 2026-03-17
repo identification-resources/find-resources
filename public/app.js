@@ -1264,7 +1264,7 @@
             const [location, displayName] = params.get('location').split(':')
             query.location = location
             document.getElementById('location').value = query.location
-            document.getElementById('search_location').value = displayName
+            document.getElementById('search_location').value = displayName || query.location
         }
 
         if (params.has('checklist') && ['gbif_dataset', 'catalog'].includes(params.get('checklist'))) {
