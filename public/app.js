@@ -798,6 +798,10 @@
             results.push(record)
         }
 
+        for (const record of results) {
+            record._libraryHoldings = DATA.libraryHoldings.filter(({ catalogId }) => catalogId === record.id)
+        }
+
         return [results, checklist]
     }
 
@@ -843,7 +847,7 @@
             }
         }
 
-        if (!record.fulltext_url && !record.archive_url) {
+        if (!record.fulltext_url && !record.archive_url && record._libraryHoldings.length === 0) {
             record._score_usability *= 0.9
         }
 
@@ -928,6 +932,34 @@
             $fulltext.append(' ', $fulltextLink)
 
             $titleColumn.appendChild($fulltext)
+        } else if (result._libraryHoldings.length) {
+            const $holding = document.createElement('p')
+            const holding = result._libraryHoldings[0]
+
+            $holding.setAttribute('style', 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap;')
+            $holding.innerHTML = octicons.available + ' '
+
+            if (holding.item.url) {
+                const $holdingLink = document.createElement('a')
+                $holdingLink.setAttribute('href', holding.item.url)
+                $holdingLink.textContent = holding.item.label
+                $holding.appendChild($holdingLink)
+            } else {
+                $holding.append(holding.item.label)
+            }
+
+            $holding.append(' in ')
+
+            if (holding.library.url) {
+                const $holdingLink = document.createElement('a')
+                $holdingLink.setAttribute('href', holding.library.url)
+                $holdingLink.textContent = holding.library.label
+                $holding.appendChild($holdingLink)
+            } else {
+                $holding.append(holding.library.label)
+            }
+
+            $titleColumn.appendChild($holding)
         }
 
         const $info = document.createElement('p')
@@ -1444,14 +1476,16 @@
     })
 
     async function loadData () {
-        const [gbif, places, taxa] = await Promise.all([
+        const [gbif, places, taxa, libraryHoldings] = await Promise.all([
             fetchJson('/assets/data/resources/gbif.index.json'),
             fetchJson('./data/places.json'),
-            indexCsv('/assets/data/taxa.csv', 'name')
+            indexCsv('/assets/data/taxa.csv', 'name'),
+            loadSettings().then(settings => getLibraryHoldings(settings))
         ])
         DATA.gbif = gbif
         DATA.places = places
         DATA.taxa = taxa
+        DATA.libraryHoldings = libraryHoldings
     }
 
     await Promise.all([
