@@ -322,12 +322,11 @@
         }
 
         const q = encodeURIComponent(query)
-        const { results } = await fetchJson(`https://api.inaturalist.org/v1/places/autocomplete?q=${q}`, { signal })
-        const suggestions = results.slice(0, 5)
+        const { results } = await fetchJson(`https://api.inaturalist.org/v2/search?q=${q}&sources=places&fields=place.name,place.display_name,place.ancestor_place_ids,place.place_type,place.location&per_page=5`, { signal })
 
-        await cachePlaceNames(suggestions.flatMap(result => result.ancestor_place_ids || []))
+        await cachePlaceNames(results.flatMap(result => result.place.ancestor_place_ids || []))
 
-        return suggestions.map(function (result) {
+        return results.map(function ({ place: result }) {
             const $result = new DocumentFragment()
 
             const $rank = document.createElement('span')
