@@ -396,8 +396,8 @@
 
                 const $rank = document.createElement('span')
                 $rank.innerHTML = [
-                    row.entry_type.split('; '),
-                    row.key_type.split('; ')
+                    ...row.entry_type.split('; '),
+                    ...row.key_type.split('; ')
                 ].map(value => octicons[value] || value).join(' ')
                 $rank.setAttribute('class', 'search-taxon')
                 $result.appendChild($rank)
