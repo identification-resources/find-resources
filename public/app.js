@@ -1324,7 +1324,7 @@
             if (resource) {
                 query.checklistSource = source
                 document.getElementById('checklist-catalog').value = source
-                document.getElementById('search_checklist-catalog').value = (resource.metadata.catalog && resource.metadata.catalog.title) ?? work.title
+                document.getElementById('search_checklist-catalog').value = (resource.metadata && resource.metadata.catalog && resource.metadata.catalog.title) ?? work.title
             }
         }
 
