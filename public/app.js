@@ -14,7 +14,7 @@
         const $searchInput = document.getElementById(`search_${$input.id}`)
 
         if ($input.value === '') {
-            $searchInput.setCustomValidity('Please select a result')
+            $searchInput.setCustomValidity(LABELS.find_resources_error_select)
         } else {
             $searchInput.setCustomValidity('')
         }
@@ -116,7 +116,7 @@
             const $result = new DocumentFragment()
 
             const $rank = document.createElement('span')
-            $rank.textContent = result.rank.toLowerCase()
+            $rank.textContent = LABELS.taxon_rank.get(result.rank.toLowerCase())
             $rank.setAttribute('class', 'search-taxon-rank')
             $result.appendChild($rank)
 
@@ -288,7 +288,7 @@
             const $result = new DocumentFragment()
 
             const $rank = document.createElement('span')
-            $rank.textContent = 'coordinates'
+            $rank.textContent = LABELS.find_resources_input_coordinates
             $rank.setAttribute('class', 'search-taxon-rank')
             $result.appendChild($rank)
 
@@ -474,7 +474,7 @@
             if (response.length < pageSize) {
                 return species
             } else {
-                log(`Loading checklist (${species.length})...`)
+                log(LABELS.functions.find_resources_loading_checklist(species.length))
                 offset += pageSize
             }
         }
@@ -507,7 +507,7 @@
             if (response.endOfRecords) {
                 return species
             } else {
-                log(`Loading checklist (${species.length})...`)
+                log(LABELS.functions.find_resources_loading_checklist(species.length))
                 offset += pageSize
             }
         }
@@ -530,7 +530,7 @@
             if (response.endOfRecords) {
                 return species
             } else {
-                log(`Loading checklist (${species.size})...`)
+                log(LABELS.functions.find_resources_loading_checklist(species.length))
                 offset += pageSize
             }
         }
@@ -557,7 +557,7 @@
             .map(taxon => ({
                 id: parseInt(taxon.gbifAcceptedTaxonID),
                 count: 0,
-                href: `/catalog/resource/?id=${taxon.collectionCode}#${taxon.scientificNameID}`,
+                href: `${URL_PREFIX}/catalog/resource/?id=${taxon.collectionCode}#${taxon.scientificNameID}`,
                 ...parseResourceTaxonName(taxon)
             }))
     }
@@ -686,14 +686,14 @@
         }
 
         // Get place info
-        log('Loading location info...')
+        log(LABELS.find_resources_loading_location)
         const allPlaces = await getPlaces(query.location)
         const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
         const country = allPlaces.find(place => place.place_type === 12)
 
         // Get checklist
-        log('Loading checklist...')
+        log(LABELS.find_resources_loading_checklist)
         let checklist
         if (compareRanks(query.taxon.rank.toLowerCase(), 'species') >= 0) {
             checklist = [{
@@ -885,7 +885,7 @@
         $result.setAttribute('class', 'result')
         $result.addEventListener('click', event => {
             if (event.target.tagName !== 'A') {
-                window.open(`/catalog/detail?id=${result.id}`, '_blank').focus()
+                window.open(`${URL_PREFIX}/catalog/detail?id=${result.id}`, '_blank').focus()
             }
         })
 
@@ -894,7 +894,7 @@
 
         const $idLink = document.createElement('a')
         $idLink.setAttribute('target', 'detail')
-        $idLink.setAttribute('href', `/catalog/detail?id=${result.id}`)
+        $idLink.setAttribute('href', `${URL_PREFIX}/catalog/detail?id=${result.id}`)
         $idLink.textContent = result.id
         $idColumn.appendChild($idLink)
 
@@ -948,7 +948,7 @@
                 $holding.append(holding.item.label)
             }
 
-            $holding.append(' in ')
+            $holding.append(' ' + LABELS.holding_in_library + ' ')
 
             if (holding.library.url) {
                 const $holdingLink = document.createElement('a')
@@ -965,14 +965,14 @@
         const $info = document.createElement('p')
         {
             const $language = document.createElement('b')
-            $language.textContent = 'Language'
+            $language.textContent = fieldLabels.language
             $info.append($language, ' ', result.language.split('; ').map(language => LANGUAGE_NAMES.of(language)).join(', '))
         }
         if (result.scope && result.scope.length) {
             $info.append(document.createElement('br'))
 
             const $scope = document.createElement('b')
-            $scope.textContent = 'Scope'
+            $scope.textContent = fieldLabels.scope
             $info.append($scope, ' ', result.scope.split('; ').join(', '))
         }
         if (result._versions && result._versions.length > 1) {
@@ -980,7 +980,7 @@
 
             const $versions = document.createElement('a')
             $versions.setAttribute('href', '#')
-            $versions.textContent = `View all ${result._versions.length} editions/versions`
+            $versions.textContent = LABELS.functions.find_resources_view_editions_versions(result._versions.length)
             $versions.addEventListener('click', event => {
                 event.stopPropagation()
                 openVersionsDialog(result, checklist)
@@ -1004,9 +1004,19 @@
             const barWidth = totalWidth - textWidth - scoreWidth
             const barBorder = 1
 
-            const parts = [{ letter: 't', label: 'Total score', key: '_score' }]
+            const parts = [
+                {
+                    letter: 't',
+                    label: LABELS.find_resources_sort_total_score,
+                    key: '_score'
+                }
+            ]
             if (result._resource) {
-                parts.push({ letter: 's', label: 'Species', key: 'species_ratio' })
+                parts.push({
+                    letter: 's',
+                    label: LABELS.find_resources_sort_species,
+                    key: 'species_ratio'
+                })
             }
 
             const $svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
@@ -1069,12 +1079,12 @@
     function makeNote () {
         const $blockquote = document.createElement('blockquote')
         const $strong = document.createElement('strong')
-        $strong.textContent = 'Note:'
+        $strong.textContent = LABELS.find_resources_error_note + ':'
         const $a = document.createElement('a')
         $a.setAttribute('href', '/#header-data')
         $a.setAttribute('target', '_blank')
-        $a.textContent = 'Suggest it for addition to the catalogue.'
-        $blockquote.append($strong, ' These search results may be incomplete, and additional suitable identification resources may exist. Missing a specific resource? ', $a)
+        $a.textContent = LABELS.find_resources_error_suggest
+        $blockquote.append($strong, ' ', LABELS.find_resources_error_incomplete, ' ', $a)
 
         return $blockquote
     }
@@ -1374,21 +1384,20 @@
         'variety',
         'form'
     ]
-    const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
     const SCORE_PARTS = [
         {
             letter: 'a',
-            label: 'Applicability',
+            label: LABELS.find_resources_sort_applicability,
             key: '_score_applicability'
         },
         {
             letter: 'u',
-            label: 'Usability',
+            label: LABELS.find_resources_sort_usability,
             key: '_score_usability'
         },
         {
             letter: 'r',
-            label: 'Recency',
+            label: LABELS.find_resources_sort_recency,
             key: '_score_recency'
         },
     ]
@@ -1436,10 +1445,10 @@
         return RANKS.indexOf(a) - RANKS.indexOf(b)
     }
 
-    makeInputControl('taxon', 'Taxon', getTaxonSuggestions)
-    makeInputControl('location', 'Location', getLocationSuggestions)
-    makeInputControl('checklist-gbif-dataset', 'GBIF dataset', getGbifDatasetSuggestions)
-    makeInputControl('checklist-catalog', 'Resource', getResourceSuggestions)
+    makeInputControl('taxon', LABELS.find_resources_input_taxon, getTaxonSuggestions)
+    makeInputControl('location', LABELS.find_resources_input_location, getLocationSuggestions)
+    makeInputControl('checklist-gbif-dataset', LABELS.find_resources_input_gbif_dataset, getGbifDatasetSuggestions)
+    makeInputControl('checklist-catalog', LABELS.find_resources_input_resource, getResourceSuggestions)
 
     for (const $input of document.querySelectorAll('input[name="checklist"]')) {
         $input.addEventListener('change', function (event) {
@@ -1478,7 +1487,7 @@
     async function loadData () {
         const [gbif, places, taxa, libraryHoldings] = await Promise.all([
             fetchJson('/assets/data/resources/gbif.index.json'),
-            fetchJson('./data/places.json'),
+            fetchJson('/find-resources/data/places.json'),
             indexCsv('/assets/data/taxa.csv', 'name'),
             loadSettings().then(settings => getLibraryHoldings(settings))
         ])
@@ -1507,7 +1516,7 @@
     }
 
     if (query != null) {
-        log('Loading...')
+        log(LABELS.find_resources_loading)
         await loadData()
 
         const [results, checklist] = await getResults(query)
