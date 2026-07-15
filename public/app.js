@@ -1508,9 +1508,9 @@
     setInputControlRequired('taxon', true)
     setInputControlRequired('location', true)
 
-    if (query.checklistType === 'gbif_dataset') {
+    if (query && query.checklistType === 'gbif_dataset') {
         setInputControlRequired('checklist-gbif-dataset', true)
-    } else if (query.checklistType === 'catalog') {
+    } else if (query && query.checklistType === 'catalog') {
         setInputControlRequired('checklist-catalog', true)
     }
 
