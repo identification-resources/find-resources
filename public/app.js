@@ -109,6 +109,28 @@
         return fetch(...args).then(response => response.json())
     }
 
+    const fetchJsonSlow = (function () {
+        const limit = 20
+        let count = 0
+        let queue = []
+
+        return async function fetchJsonSlow (...args) {
+            if (count >= limit) {
+                await new Promise(resolve => { queue.push(resolve) })
+            }
+
+            count++
+            const response = await fetchJson(...args)
+            count--
+
+            if (queue.length && count < limit) {
+                queue.shift()()
+            }
+
+            return response
+        }
+    })()
+
     const MAIN_RANKS = new Set(['CLASS', 'ORDER', 'SUBORDER', 'FAMILY'])
     async function getTaxonSuggestions (query, signal) {
         const q = encodeURIComponent(query)
@@ -1247,7 +1269,15 @@
                     $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
                 } else {
                     $taxonLink.textContent = taxon.id
+                    fetchJsonSlow(`https://api.gbif.org/v2/experimental/taxon/7ddf754f-d193-4cc9-b351-99906754a03b/${taxon.id}`).then(result => {
+                        taxon.name = result.scientificName
+                        taxon.authorship = result.scientificNameAuthorship
+                        empty($taxonLink)
+                        $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                    })
                 }
+
+                $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
 
                 $taxon.appendChild($taxonLink)
                 $missing.appendChild($taxon)
