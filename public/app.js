@@ -120,14 +120,15 @@
             }
 
             count++
-            const response = await fetchJson(...args)
-            count--
+            try {
+                return await fetchJson(...args)
+            } finally {
+                count--
 
-            if (queue.length && count < limit) {
-                queue.shift()()
+                if (queue.length && count < limit) {
+                    queue.shift()()
+                }
             }
-
-            return response
         }
     })()
 
