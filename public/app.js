@@ -469,7 +469,10 @@
         return taxon.classification.map(parent => ({
             name: parent.scientificName,
             col: parent.taxonID
-        }))
+        })).concat({
+            name: taxon.scientificName,
+            col: taxon.taxonID
+        })
     }
 
     async function getPlaces (query) {
