@@ -527,14 +527,24 @@
         while (true) {
             const url = `${baseUrl}&limit=${pageSize}&offset=${offset}`
             const response = await fetchJson(url)
+            const mappings = await Promise.all(response.results.map(result => fetchJsonSlow(`https://api.gbif.org/v2/experimental/taxon/${dataset}/${result.taxonID}/related?datasetKey=7ddf754f-d193-4cc9-b351-99906754a03b`)))
 
-            species.push(...response.results.map(result => ({
-                id: result.nubKey,
-                count: 0,
-                href: `https://www.gbif.org/taxon/${result.key}`,
-                name: result.canonicalName,
-                authorship: result.authorship
-            })))
+            for (let i = 0; i < response.results.length; i++) {
+                const result = response.results[i]
+                const mapping = mappings[i][0]
+
+                if (!mapping) {
+                    continue
+                }
+
+                species.push({
+                    id: mapping.taxonID,
+                    count: 0,
+                    href: `https://www.gbif.org/dataset/${dataset}/taxon/${result.taxonID}`,
+                    name: result.canonicalName,
+                    authorship: result.authorship
+                })
+            }
 
             if (response.endOfRecords) {
                 return species
