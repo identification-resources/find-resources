@@ -500,7 +500,8 @@
                 species.push({
                     id: result.name,
                     count: result.count,
-                    href: `https://www.gbif.org/taxon/${result.name}`
+                    href: `https://www.gbif.org/taxon/${result.name}`,
+                    loirHref: `${URL_PREFIX}/taxonomy/taxon/?col=${result.name}`
                 })
             }
             if (response.length < pageSize) {
@@ -541,6 +542,7 @@
                     id: mapping.taxonID,
                     count: 0,
                     href: `https://www.gbif.org/dataset/${dataset}/taxon/${result.taxonID}`,
+                    loirHref: `${URL_PREFIX}/taxonomy/taxon/?col=${mapping.taxonID}`,
                     name: result.canonicalName,
                     authorship: result.authorship
                 })
@@ -600,6 +602,7 @@
                 id: taxon.colAcceptedTaxonID,
                 count: 0,
                 href: `${URL_PREFIX}/catalog/resource/?id=${taxon.collectionCode}#${taxon.scientificNameID}`,
+                loirHref: `${URL_PREFIX}/taxonomy/taxon/?col=${mapping.colAcceptedTaxonID}`,
                 ...parseResourceTaxonName(taxon)
             }))
     }
@@ -1203,6 +1206,22 @@
         return $container
     }
 
+    function makeTaxonLinks (taxon) {
+        const $taxon = new DocumentFragment()
+
+        const $searchLink = document.createElement('a')
+        $searchLink.setAttribute('href', taxon.loirHref)
+        $searchLink.innerHTML = octicons.info
+        $taxon.append(' ', $searchLink)
+
+        const $taxonLink = document.createElement('a')
+        $taxonLink.setAttribute('href', taxon.href)
+        $taxonLink.innerHTML = octicons.external_url
+        $taxon.append(' ', $taxonLink)
+
+        return $taxon
+    }
+
     async function openCoverageDialog (result, checklist) {
         for (const { key: part } of SCORE_PARTS) {
             const $td = document.getElementById(part.slice(1))
@@ -1263,19 +1282,18 @@
 
             for (const taxon of matching) {
                 const $taxon = document.createElement('li')
-                const $taxonLink = document.createElement('a')
-                $taxonLink.setAttribute('href', taxon.href)
 
                 if (taxon.name) {
-                    $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                    $taxon.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
                 } else if (resourceTaxonNames[taxon.id]) {
                     const { name, authorship } = parseResourceTaxonName(resourceTaxonNames[taxon.id])
-                    $taxonLink.append(formatTaxonName(name, authorship, 'species'))
+                    $taxon.append(formatTaxonName(name, authorship, 'species'))
                 } else {
-                    $taxonLink.textContent = taxon.id
+                    $taxon.textContent = taxon.id
                 }
 
-                $taxon.appendChild($taxonLink)
+                $taxon.append(makeTaxonLinks(taxon))
+
                 $matching.appendChild($taxon)
             }
 
@@ -1284,24 +1302,23 @@
 
             for (const taxon of missing) {
                 const $taxon = document.createElement('li')
-                const $taxonLink = document.createElement('a')
-                $taxonLink.setAttribute('href', taxon.href)
+                const $taxonName = document.createElement('span')
+
 
                 if (taxon.name) {
-                    $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                    $taxonName.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
                 } else {
-                    $taxonLink.textContent = taxon.id
+                    $taxonName.textContent = taxon.id
                     fetchJsonSlow(`https://api.gbif.org/v2/experimental/taxon/7ddf754f-d193-4cc9-b351-99906754a03b/${taxon.id}`).then(result => {
                         taxon.name = result.scientificName
                         taxon.authorship = result.scientificNameAuthorship
-                        empty($taxonLink)
-                        $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                        empty($taxonName)
+                        $taxonName.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
                     })
                 }
 
-                $taxonLink.append(formatTaxonName(taxon.name, taxon.authorship, 'species'))
+                $taxon.append($taxonName, makeTaxonLinks(taxon))
 
-                $taxon.appendChild($taxonLink)
                 $missing.appendChild($taxon)
             }
 
