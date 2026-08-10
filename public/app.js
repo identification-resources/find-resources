@@ -960,6 +960,14 @@
         }
         $titleColumn.appendChild($title)
 
+        if (DATA.catalog[result.id].title !== result.title) {
+            const $subtitle = document.createElement('p')
+            const $b = document.createElement('b')
+            $b.textContent = DATA.catalog[result.id].title
+            $subtitle.append(LABELS.find_resources_sort_total_score + ': ', $b)
+            $titleColumn.appendChild($subtitle)
+        }
+
         const fulltext = result.fulltext_url || result.archive_url
         if (fulltext) {
             const $fulltext = document.createElement('p')
