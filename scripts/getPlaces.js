@@ -16,7 +16,15 @@ async function main (places) {
   ?qid wdt:P7471 ?id .
 }`
 
-  const response = await fetch(wdk.sparqlQuery(query))
+  const [url, body]  = wdk.sparqlQuery(query).split('?')
+  const response = await fetch(url, {
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      'user-agent': 'Library of Identification Resources (https://identification-resources.github.io/)'
+    },
+    method: 'POST',
+    body
+  })
   const results = wdk.simplify.sparqlResults(await response.json())
 
   const taxa = {}
