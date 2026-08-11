@@ -967,7 +967,7 @@
             const $subtitle = document.createElement('p')
             const $b = document.createElement('b')
             $b.textContent = DATA.catalog[result.id].title
-            $subtitle.append(LABELS.find_resources_sort_total_score + ': ', $b)
+            $subtitle.append(LABELS.find_resources_in + ': ', $b)
             $titleColumn.appendChild($subtitle)
         }
 
