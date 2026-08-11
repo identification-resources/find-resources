@@ -481,12 +481,6 @@
         return results.results.standard
     }
 
-    async function getCountryCode (id) {
-        const query = encodeURIComponent(`SELECT*WHERE{"${id}"^wdt:P7471/wdt:P131*/wdt:P297?c}`)
-        const results = await fetchJson('https://query.wikidata.org/sparql?format=json&query=' + query)
-        return results.results.bindings[0].c.value
-    }
-
     async function getOccurrencesBySpecies (taxon, countryCode) {
         const baseUrl = `https://api.gbif.org/v1/occurrence/search?facet=speciesKey&country=${countryCode.toUpperCase()}&checklistKey=7ddf754f-d193-4cc9-b351-99906754a03b&taxonKey=${taxon}&year=0,9999&occurrence_status=present&limit=0`
 
@@ -735,7 +729,7 @@
         const allPlaces = await getPlaces(query.location)
         const places = allPlaces.map(result => DATA.places[result.id]).filter(Boolean)
         places.unshift('-')
-        const country = allPlaces.find(place => place.place_type === 12)
+        const countryCode = allPlaces.map(place => DATA.countryCodes[place.id]).find(Boolean)
 
         // Get checklist
         log(LABELS.find_resources_loading_checklist)
@@ -752,9 +746,8 @@
             // Use resource in catalog as basis
             const resource = await loadKey(query.checklistSource)
             checklist = await getSpeciesByChecklist(query.taxon.taxonID, resource)
-        } else if (query.checklistType === 'search' && country) {
+        } else if (query.checklistType === 'search' && countryCode) {
             // Use GBIF occurrence data
-            const countryCode = await getCountryCode(country.id)
             checklist = await getOccurrencesBySpecies(query.taxon.taxonID, countryCode)
         } else if (query.checklistType === 'gbif_dataset') {
             checklist = await getSpeciesByDataset(query.taxon.taxonID, query.checklistSource)
@@ -1581,14 +1574,16 @@
     })
 
     async function loadData () {
-        const [col, places, taxa, libraryHoldings] = await Promise.all([
+        const [col, places, countryCodes, taxa, libraryHoldings] = await Promise.all([
             fetchJson('/assets/data/resources/col.index.json'),
             fetchJson('/find-resources/data/places.json'),
+            fetchJson('/find-resources/data/country_codes.json'),
             indexCsv('/assets/data/taxa.csv', 'name'),
             loadSettings().then(settings => getLibraryHoldings(settings))
         ])
         DATA.col = col
         DATA.places = places
+        DATA.countryCodes = countryCodes
         DATA.taxa = taxa
         DATA.libraryHoldings = libraryHoldings
     }
